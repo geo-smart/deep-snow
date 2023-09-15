@@ -23,7 +23,7 @@ During the GeoSMART Hack Week, we hope to evaluate:
   * Various snow extent products
   * Optical remote sensing data
 
-### Project Goals
+### Project goals
 We see two potential end products:
 * A tool that takes a date range and a bounding box and produces a snow depth time series using our neural network
 * The beginning of a paper where we present and validate our results

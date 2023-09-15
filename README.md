@@ -1,78 +1,78 @@
-# Sample Project
-
-This is as an example on how teams can structure their project repositories and format their project README.md file. Thanks to Lindsey Heagey and Joachim Meyer for the template!
-
-## Files
-
-* `.gitignore`
-<br> Globally ignored files by `git` for the project.
-* `environment.yml`
-<br> `conda` environment description needed to run this project.
-* `README.md`
-<br> Description of the project (see suggested headings below)
-
-## Folders
-
-This template provides the following folders and suggested organizaiton structure for the project repository, but each project team is free to organize their repository as they see fit.
-
-### `contributors`
-Each team member can create their own folder under contributors, within which they can work on their own scripts, notebooks, and other files. Having a dedicated folder for each person helps to prevent conflicts when merging with the main branch. This is a good place for team members to start off exploring data and methods for the project.
-
-### `notebooks`
-Notebooks that are considered delivered results for the project should go in here.
-
-### `scripts`
-Helper utilities that are shared with the team should go in here.
-
-# Recommended content for your README.md file:
-
-## Project Summary
-
-### Project Title
-
-Brief title describing the proposed work.
+# crunchy-snow
+## Neural networks for Sentinel-1 SAR backscatter snow depth retrieval
 
 ### Collaborators
-
-List all participants on the project.
-
-* Project lead
-* Team member
-* Team member
-* Team member
-* ...
+* Eric Gagliano, egagli@uw.edu
+* Quinn Brencher, gbrench@uw.edu
 
 ### The problem
+Seasonal snow provides drinking water for billions, but current global measurements of snow depth lack adequate spatial and temporal resolution for effective resource management–especially in mountainous terrain. Recent work has demonstrated the potential to retrieve snow-depth measurements from Sentinel-1 synthetic aperture radar (SAR) backscatter data. However, comparisons with airborne lidar data suggest that existing algorithms fail to capture the full complexity of relationships between snow depth, terrain, vegetation, and SAR backscatter, the physics of which are poorly understood. We suggest that a neural network may be able to effectively learn these relationships and retrieve snow depth from SAR backscatter with improved accuracy. 
 
-What problem are you going to explore? Provide a few sentences. If this is a technical exploration of software or data science methods, explain why this work is important in a broader context and specific applications of this work. To get some ideas, see example use cases on the GeoSMART website [here](https://geo-smart.github.io/usecases).
+During the GeoSMART Hack Week, we hope to evaluate:
+* Two neural network architectures:
+  * one that predicts snow depth for a single Sentinel-1 backscatter acquisition
+  * one that predicts snow depth for a Sentinel-1 backscatter time series
+* Three sources of target data:
+  * Snow depths from Airborne Snow Observatory (ASO) lidar data
+  * Snow depths retrieved with an existing algorithm implemented by spicy-snow
+  * Snow depths from the physically-based modeling
+* The impact of additional input data, including:
+  * Various fractional forest cover datasets
+  * Incidence angle, layover, and radar shadow maps
+  * Digital elevation models
+  * Various snow extent products
+  * Optical remote sensing data
 
-### Specific questions / project goals
-
-List the specific tasks you want to accomplish, project goals, or research questions you want to answer. Think about what outcomes or deliverables you'd like to create (e.g. a series of tutorial notebooks demonstrating a [use case](https://geo-smart.github.io/usecases#Contributing), or a new python package).
+### Project Goals
+We see two potential end products:
+* A tool that takes a date range and a bounding box and produces a snow depth time series using our neural network
+* The beginning of a paper where we present and validate our results
 
 ### Data
-
-Briefly describe the data that will be used here (size, format, how to access).
-
-### Existing methods
-
-How would you or others traditionally try to address this problem?
-
-### Proposed methods/tools
-
-What new approaches would you like to try to implement to address your specific question(s) or application(s)?
-
-### Additional resources or background reading
-
-Optional: links to manuscripts or technical documents providing background information, context, or other relevant information.
+We will make use of scripts developed by the [spicy-snow](https://github.com/SnowEx/spicy-snow) team to automatically pull in 1) radiometrically terrain corrected (RTC) Sentinel-1 backscatter data (and associated DEMs, incidence angle maps, etc) using the Alaska Satellite Facility HyP3 on-demand processing service, 2) fractional forest cover maps, 3) snow extent data, and 4) snow depths from an existing algorithm (Lievens et al., 2022). These products are automatically delivered as xarray-compatible NetCDFs by the spicy-snow pipeline. Additional work will be needed to bring in harmonized Sentinel-2 Landsat imagery. We have access to ASO lidar snow depth data in geotiff format from numerous sites in the Western US. We (may) have access to modeled snow depth data from the Upper East River Basin in Colorado. 
 
 ### Tasks
+1. Prepare training, validation, and testing dataset from large rasters (hopefully to be done by project leads before hackweek)
+  * Delineate tiles, randomly subset rasters
+  * Preprocess data: normalization, gap filling
+  * Augment data
+3. Implement two neural network architectures (team one and two during hackweek)
+  * Prepare models in pytorch to accept appropriate inputs
+  * Decide on initial loss functions, optimizers, hyperparameters
+4. Implement training metrics (team three during hackweek)
+  * Decide how to evaluate model performance. MSE? SSIM?
+  * Functions to generate plots that tell us about training results at-a-glance
+5. Initial training runs (all group members)
+  * Overtrain small dataset, examine outputs, troubleshoot issues
+6. Train neural network (all group members)
+  * Train network until validation loss is minimized (or other metrics are optimized)
+  * Examine impact of different input data
+  * Examine impact of different target data
+7. Optimize hyperparameters (teams one and two)
+8. Evaluate network performance with test data (team three)
+9. Application 
+  * Apply model to out-of-region application area, compare results to SNOTEL or other data sources
+10. Build tool
+  * Create a clean, pip-installable tool that applies our neural network, using the spicy-snow framework
+11. Create figures
+  * Map showing aois
+  * Methods schematic, network architectures
+  * example inputs and outputs
+  * training results
+  * testing results
+  * application results
+12. Write methods 
+13. Write results
 
-What are the individual tasks or steps that need to be taken to achieve the project goals? Think about which tasks are dependent on prior tasks, or which tasks can be performed in parallel. This can help divide up project work among team members.
+### Additional resources or background reading
+- spicy-snow background: https://github.com/SnowEx/spicy-snow/blob/main/contrib/brencher/tutorial/01background.ipynb
+- Lievens et al. (2022) paper https://tc.copernicus.org/articles/16/159/2022/
+- Lievens et al. (2019) paper https://www.nature.com/articles/s41467-019-12566-y
+- SAR basics https://asf.alaska.edu/information/sar-information/what-is-sar/
+- More SAR basics https://www.earthdata.nasa.gov/learn/backgrounders/what-is-sar
+- Sentinel-1 SAR https://sentinels.copernicus.eu/web/sentinel/user-guides/sentinel-1-sar
+- More on ASF HyP3 RTC: https://hyp3-docs.asf.alaska.edu/guides/rtc_product_guide/
+- SAR theory from 2022 UNAVCO InSAR class (more advanced) https://nbviewer.org/github/parosen/Geo-SInC/blob/main/UNAVCO2022/0.8_SAR_Theory_Phenomenology/SAR.ipynb, https://nbviewer.org/github/parosen/Geo-SInC/blob/main/UNAVCO2022/0.9_SAR_Imaging_Theory/SAR_Processor.ipynb
 
-* Task 1 (all team members)
-* Task 2
-  * Task 2a (assigned to team member A)
-  * Task 2b (assigned to team member B)
-* Task 3
-* ...
+### Citations
+Lievens, H., Brangers, I., Marshall, H. P., Jonas, T., Olefs, M., & De Lannoy, G. (2022). Sentinel-1 snow depth retrieval at sub-kilometer resolution over the European Alps. The Cryosphere, 16(1), 159-177.

@@ -1,0 +1,13 @@
+name: crunchy-snow
+channels:
+  - pytorch 
+  - conda-forge
+dependencies:
+  - pytorch
+  - rioxarray
+  - ipykernel
+  - matplotlib
+  - torchvision
+  - nb_conda_kernels
+  - seaborn
+  - h5netcdf

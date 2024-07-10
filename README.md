@@ -24,9 +24,9 @@
 2024 NASA Earth Sciences and UW Hackweek team:
 
 ### The problem
-Seasonal snow provides drinking water for billions, but current global measurements of snow depth lack adequate spatial and temporal resolution for effective resource management--especially in mountainous terrain. Recent work has demonstrated the potential to retrieve snow-depth measurements from Sentinel-1 synthetic aperture radar (SAR) backscatter data. However, comparisons with airborne lidar data suggest that existing algorithms fail to capture the full complexity of relationships between snow depth, terrain, vegetation, and SAR backscatter, the physics of which are poorly understood. We suggest that a machine learning model may be able to effectively learn these relationships and retrieve snow depth from SAR backscatter with improved accuracy. 
+Seasonal snow provides drinking water for billions, but current global measurements of snow depth lack adequate spatial and temporal resolution for effective resource management--especially in mountainous terrain. Recent work has demonstrated the potential to retrieve snow-depth measurements from Sentinel-1 synthetic aperture radar (SAR) backscatter data. However, comparisons with airborne lidar data suggest that existing snow depth retrieval algorithms fail to capture the full complexity of relationships between snow depth, terrain, vegetation, and SAR backscatter, the physics of which are poorly understood. We suggest that a machine learning model may be able to effectively learn these relationships and retrieve snow depth from SAR backscatter with improved accuracy. 
 
-During the 2023 GeoSMART Hackweek, the crunchy-snow team trained a convolutional neural network to predict snow depth ([see results here](https://docs.google.com/presentation/d/160eq-O48m0FuJgghCHZ4Idysb9zokbMF6Qd1E3HJJww/edit?usp=sharing)). Initial results are promising, but this model needs to be improved, validated, and applied. 
+During the 2023 GeoSMART Hackweek, the crunchy-snow team trained a convolutional neural network to predict snow depth ([see results here](https://docs.google.com/presentation/d/160eq-O48m0FuJgghCHZ4Idysb9zokbMF6Qd1E3HJJww/edit?usp=sharing)). Initial results are promising! But this model needs to be improved, validated, and applied. 
 
 ![fig](imgs/pred_map.png)
 
@@ -34,20 +34,22 @@ During the 2023 GeoSMART Hackweek, the crunchy-snow team trained a convolutional
 
 
 ### Project goals
-This is an ongoing machine learning project with opportunities to contribute at various stages in the project lifecycle. 
+The overarching goal for this hackweek is to improve our snow depth prediction model such that it outperforms the initial model implemented last year. This is an ongoing machine learning project with opportunities to contribute at various stages in the project lifecycle! 
 
 #### General goals 
-- improve hyperparameters, model architecture, and inputs
-- implement some way to track experiments
-- perform sensitivity analysis to quantify the importance of each input
+- improve hyperparameters, model architecture, and input selection
 - perform model validation and testing
 - apply model to predict snow depth in new areas
 - improve visualizations
 
-#### Specific goals
-- Create a snow depth map at peak snow water equivalent 2023 for the entire western U.S.
-- Compare snow depth results to SNOTEL and [spicy-snow](https://github.com/SnowEx/spicy-snow) measurements
+#### Stretch goals
+- Create a snow depth map at peak snow water equivalent 2023 for the entire western U.S (or some large area within it)
+- Compare snow depth results to SNOTEL/[spicy-snow](https://github.com/SnowEx/spicy-snow) measurements
 - Develop a tool that takes a date range and a bounding box and produces a snow depth time series using our model
+
+#### Other goals
+- implement some way to track experiments
+- perform sensitivity analysis to quantify the importance of each input
 
 ### Data
 Our dataset includes:

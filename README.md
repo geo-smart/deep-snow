@@ -30,9 +30,6 @@ During the 2023 GeoSMART Hackweek, the crunchy-snow team trained a convolutional
 
 ![fig](imgs/pred_map.png)
 
-![fig](figs/modelv1_rmse.png)
-
-
 ### Project goals
 The overarching goal for this hackweek is to improve our snow depth prediction model such that it outperforms the initial model implemented last year. This is an ongoing machine learning project with opportunities to contribute at various stages in the project lifecycle! 
 

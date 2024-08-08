@@ -3,9 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class SimpleCNN(nn.Module):
-    def __init__(self, input_channels, out_channels=1):
+    def __init__(self, n_input_channels, out_channels=1):
         super(SimpleCNN, self).__init__()
-        self.conv1 = nn.Conv2d(input_channels, 32, kernel_size=3, padding=1)
+        self.conv1 = nn.Conv2d(n_input_channels, 32, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
         self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
         self.conv4 = nn.Conv2d(128, 64, kernel_size=3, padding=1)
@@ -23,21 +23,21 @@ class SimpleCNN(nn.Module):
         return x
 
 class UNet(nn.Module):
-    def __init__(self, input_channels=12, out_channels=1):
+    def __init__(self, n_input_channels=12, out_channels=1):
         super(UNet, self).__init__()
         
-        def conv_block(input_channels, out_channels):
+        def conv_block(n_input_channels, out_channels):
             return nn.Sequential(
-                nn.Conv2d(input_channels, out_channels, kernel_size=3, padding=1),
+                nn.Conv2d(n_input_channels, out_channels, kernel_size=3, padding=1),
                 nn.ReLU(inplace=True),
                 nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
                 nn.ReLU(inplace=True)
             )
         
-        def up_conv(input_channels, out_channels):
-            return nn.ConvTranspose2d(input_channels, out_channels, kernel_size=2, stride=2)
+        def up_conv(n_input_channels, out_channels):
+            return nn.ConvTranspose2d(n_input_channels, out_channels, kernel_size=2, stride=2)
         
-        self.encoder1 = conv_block(input_channels, 64)
+        self.encoder1 = conv_block(n_input_channels, 64)
         self.encoder2 = conv_block(64, 128)
         self.encoder3 = conv_block(128, 256)
         self.encoder4 = conv_block(256, 512)
@@ -84,14 +84,14 @@ class UNet(nn.Module):
         return self.final_conv(dec1)
 
 class ResidualBlock(nn.Module):
-    def __init__(self, input_channels, out_channels):
+    def __init__(self, n_input_channels, out_channels):
         super(ResidualBlock, self).__init__()
-        self.conv1 = nn.Conv2d(input_channels, out_channels, kernel_size=3, padding=1)
+        self.conv1 = nn.Conv2d(n_input_channels, out_channels, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
         self.shortcut = nn.Sequential()
-        if input_channels != out_channels:
+        if n_input_channels != out_channels:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(input_channels, out_channels, kernel_size=1),
+                nn.Conv2d(n_input_channels, out_channels, kernel_size=1),
             )
 
     def forward(self, x):
@@ -102,9 +102,9 @@ class ResidualBlock(nn.Module):
         return out
 
 class ResUNet(nn.Module):
-    def __init__(self, input_channels=12):
+    def __init__(self, n_input_channels=12):
         super(ResUNet, self).__init__()
-        self.encoder1 = ResidualBlock(input_channels, 64)
+        self.encoder1 = ResidualBlock(n_input_channels, 64)
         self.encoder2 = ResidualBlock(64, 128)
         self.encoder3 = ResidualBlock(128, 256)
         self.encoder4 = ResidualBlock(256, 512)
@@ -148,10 +148,10 @@ class ResUNet(nn.Module):
         return out
 
 class PatchEmbedding(nn.Module):
-    def __init__(self, input_channels=12, patch_size=16, emb_size=768, img_size=128):
+    def __init__(self, n_input_channels=12, patch_size=16, emb_size=768, img_size=128):
         super(PatchEmbedding, self).__init__()
         self.patch_size = patch_size
-        self.proj = nn.Conv2d(input_channels, emb_size, kernel_size=patch_size, stride=patch_size)
+        self.proj = nn.Conv2d(n_input_channels, emb_size, kernel_size=patch_size, stride=patch_size)
         self.cls_token = nn.Parameter(torch.randn(1, 1, emb_size))
         self.pos_embedding = nn.Parameter(torch.randn((img_size // patch_size) ** 2 + 1, emb_size))
 
@@ -162,6 +162,26 @@ class PatchEmbedding(nn.Module):
         cls_tokens = self.cls_token.expand(b, -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
         x += self.pos_embedding
+        return x
+
+class VisionTransformer(nn.Module):
+    def __init__(self, n_input_channels=12, patch_size=16, emb_size=768, img_size=128, depth=12, num_heads=8, dropout=0.1):
+        super(VisionTransformer, self).__init__()
+        self.patch_embedding = PatchEmbedding(n_input_channels, patch_size, emb_size, img_size)
+        self.transformer = nn.Sequential(
+            *[TransformerBlock(emb_size, num_heads, dropout) for _ in range(depth)]
+        )
+        self.mlp_head = nn.Sequential(
+            nn.LayerNorm(emb_size),
+            nn.Linear(emb_size, img_size * img_size),
+            nn.Unflatten(1, (1, img_size, img_size))
+        )
+
+    def forward(self, x):
+        x = self.patch_embedding(x)
+        x = self.transformer(x)
+        x = x[:, 0]  # Use the class token
+        x = self.mlp_head(x)
         return x
 
 class MultiHeadAttention(nn.Module):
@@ -302,12 +322,12 @@ class SkipConnection(nn.Module):
 
 
 class ResDepth(nn.Module):
-    def __init__(self, input_channels=14, start_kernel=64, max_filter_depth=512, depth=6,
+    def __init__(self, n_input_channels=14, start_kernel=64, max_filter_depth=512, depth=6,
                  act_fn_encoder='relu', act_fn_decoder='relu', act_fn_bottleneck='relu', up_mode='transpose',
-                 do_BN=False, bias_conv_layer=True, outer_skip=False, outer_skip_BN=False):
+                 do_BN=False, bias_conv_layer=True, outer_skip=True, outer_skip_BN=False):
         """
         UNet network architecture.
-        :param input_channels:      int, number of input channels
+        :param n_input_channels:      int, number of input channels
         :param start_kernel:        int, number of filters of the first convolutional layer in the encoder
         :param max_filter_depth:    int, maximum filter depth
         :param depth:               int, number of downsampling and upsampling layers (i.e., number of blocks in the
@@ -336,7 +356,7 @@ class ResDepth(nn.Module):
             raise ValueError(f"'{up_mode}' is not a valid mode for upsampling. Choose among ['transpose', 'bilinear'] "
                              "to specify 'up_mode'.\n")
 
-        self.input_channels = input_channels
+        self.n_input_channels = n_input_channels
         self.start_kernel = start_kernel
         self.depth = depth
         self.act_fn_encoder = act_fn_encoder
@@ -356,7 +376,7 @@ class ResDepth(nn.Module):
         # Set up the encoder
         self.encoder = nn.ModuleList()
         self.encoder.append(nn.Sequential(
-            conv_block(self.input_channels, self.start_kernel, activation=self.act_fn_encoder, do_BN=self.do_BN),
+            conv_block(self.n_input_channels, self.start_kernel, activation=self.act_fn_encoder, do_BN=self.do_BN),
             nn.MaxPool2d(kernel_size=2, stride=2)
             ))
 
@@ -443,23 +463,3 @@ class ResDepth(nn.Module):
             out = add(x_0, out)  # use channel 0 only
 
         return out
-
-class VisionTransformer(nn.Module):
-    def __init__(self, input_channels=12, patch_size=16, emb_size=768, img_size=128, depth=12, num_heads=8, dropout=0.1):
-        super(VisionTransformer, self).__init__()
-        self.patch_embedding = PatchEmbedding(input_channels, patch_size, emb_size, img_size)
-        self.transformer = nn.Sequential(
-            *[TransformerBlock(emb_size, num_heads, dropout) for _ in range(depth)]
-        )
-        self.mlp_head = nn.Sequential(
-            nn.LayerNorm(emb_size),
-            nn.Linear(emb_size, img_size * img_size),
-            nn.Unflatten(1, (1, img_size, img_size))
-        )
-
-    def forward(self, x):
-        x = self.patch_embedding(x)
-        x = self.transformer(x)
-        x = x[:, 0]  # Use the class token
-        x = self.mlp_head(x)
-        return x

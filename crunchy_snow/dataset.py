@@ -2,6 +2,8 @@ import torch
 import torch.utils.data
 import xarray as xr
 import numpy as np
+import os
+import pandas as pd
 
 def calc_dowy(doy):
     'calculate day of water year from day of year'
@@ -28,47 +30,36 @@ def undo_norm(tensor, minmax_list):
 
 def db_scale(x, epsilon=1e-10):
     # Add epsilon only where x is zero
-    x_with_epsilon = np.where(x == 0, epsilon, x)
+    x_with_epsilon = np.where(x==0, epsilon, x)
     # Calculate the logarithm
     log_x = 10 * np.log10(x_with_epsilon)
     # Set the areas where x was originally zero back to zero
-    log_x[x == 0] = 0
+    log_x[x==0] = 0
     return log_x
 
-# # find dataset min and max for normalization
-# norm_dict = {}
-# for i, outputs in enumerate(train_loader):
-#     if (i+1)%1000 == 0: 
-#         print(f'loop {i+1}/{train_data.filelength}')
-#     for j, item in enumerate(outputs):
-#         if i == 0:
-#             norm_dict[j] = [item.min(), item.max()]
-#         if item.max() > norm_dict[j][1]:
-#             norm_dict[j][1] = item.max().item()
-#         if item.min() < norm_dict[j][0] and not item.min() == 0:
-#             norm_dict[j][0] = item.min().item()
-
 # these are set by finding the min and max across the entire dataset
-norm_dict = {'aso_sd':[0, 24.9],
-             'vv':[0, 41.4],
-             'vh':[0, 16.4],
-             'cr':[],
-             'delta_cr':[],
-             'AOT':[0, 572.1],
-             'coastal':[0, 23459.1],
-             'blue':[0, 23004.1],
-             'green':[0, 26440.1],
-             'red':[0, 21576.1],
-             'red_edge1':[0, 20796.1],
-             'red_edge2':[0, 20432.1],
-             'red_edge3':[0, 20149.1],
-             'nir':[0, 21217.1],
-             'water_vapor':[0, 18199.1],
-             'swir1':[0, 17549.1],
-             'swir2':[0, 17314.1],
+norm_dict = {'aso_sd':[0, 25],
+             'vv':[-59, 42],
+             'vh':[-70, 19],
+             'cr':[-43, 16],
+             'delta_cr':[-33, 27],
+             'AOT':[0, 572],
+             'coastal':[0, 24304],
+             'blue':[0, 23371],
+             'green':[0, 26440],
+             'red':[0, 21576],
+             'red_edge1':[0, 20796],
+             'red_edge2':[0, 20432],
+             'red_edge3':[0, 20149],
+             'nir':[0, 21217],
+             'water_vapor':[0, 18199],
+             'swir1':[0, 17669],
+             'swir2':[0, 17936],
              'scene_class_map':[0, 15],
-             'water_vapor_product':[0, 6517.5],
-             'elevation':[-100, 9000]}
+             'water_vapor_product':[0, 6518],
+             'elevation':[-100, 9000],
+             'latitude':[-90, 90],
+             'longitude':[-180, 180]}
 
 # define dataset 
 class Dataset(torch.utils.data.Dataset):
@@ -89,7 +80,9 @@ class Dataset(torch.utils.data.Dataset):
     #load images
     def __getitem__(self,idx):
         ds = xr.open_dataset(self.path_list[idx])
+        # to downsample dataset
         #ds = ds.coarsen(x = 6, boundary = 'trim').mean().coarsen(y = 6, boundary = 'trim').mean()
+        
         # convert to tensors
         aso_sd = torch.from_numpy(np.float32(ds.aso_sd.values))
         snowon_vv = torch.from_numpy(db_scale(np.float32(ds.snowon_vv.values)))
@@ -116,55 +109,61 @@ class Dataset(torch.utils.data.Dataset):
         water_vapor_product = torch.from_numpy(np.float32(ds.WVP.values))
         fcf = torch.from_numpy(np.float32(ds.fcf.values))
         elevation = torch.from_numpy(np.float32(ds.elevation.values))
+        latitude = torch.from_numpy(np.float32(ds.latitude.values))
+        longitude = torch.from_numpy(np.float32(ds.longitude.values))
         aso_gap_map = torch.from_numpy(np.float32(ds.aso_gap_map.values))
         rtc_gap_map = torch.from_numpy(np.float32(ds.rtc_gap_map.values))
         rtc_mean_gap_map = torch.from_numpy(np.float32(ds.rtc_mean_gap_map.values))
+        s2_gap_map = torch.from_numpy(np.float32(ds.s2_gap_map.values))
 
         # calculate some other inputs for our CNN
-        ndvi = (nir - red)/(nir + red)
-        ndsi = (green - swir1)/(green + swir1)
-        ndwi = (green - nir)/(green + nir)
+        ndvi = torch.nan_to_num((nir - red)/(nir + red), 0)
+        ndsi = torch.nan_to_num((green - swir1)/(green + swir1), 0)
+        ndwi = torch.nan_to_num((green - nir)/(green + nir), 0)
 
         snowon_cr = snowon_vh - snowon_vv
-        snowoff_cr = snowoff_vh - snowoff_vh
+        snowoff_cr = snowoff_vh - snowoff_vv
         delta_cr = snowon_cr - snowoff_cr
 
-        # fn = os.path.split(path)[-1]
-        # dowy_1d = calc_dowy(pd.to_datetime(fn.split('_')[4]).dayofyear)
-        # dowy = torch.full_like(aso_sd, dowy_1d)
+        fn = os.path.split(self.path_list[idx])[-1]
+        dowy_1d = calc_dowy(pd.to_datetime(fn.split('_')[4]).dayofyear)
+        dowy = torch.full_like(aso_sd, dowy_1d)
             
         # normalize layers (except gap maps and fcf)
         if self.norm == True:
-            aso_sd = calc_norm(aso_sd, self.norm_dict['aso_sd'])
-            snowon_vv = calc_norm(snowon_vv, self.norm_dict['vv'])
-            snowon_vh = calc_norm(snowon_vh, self.norm_dict['vh'])
-            snowoff_vv = calc_norm(snowoff_vv, self.norm_dict['vv'])
-            snowoff_vh = calc_norm(snowoff_vh, self.norm_dict['vh'])
-            snowon_vv_mean = calc_norm(snowon_vv_mean, self.norm_dict['vv'])
-            snowon_vh_mean = calc_norm(snowon_vh_mean, self.norm_dict['vh'])
-            snowoff_vv_mean = calc_norm(snowoff_vv_mean, self.norm_dict['vv'])
-            snowoff_vh_mean = calc_norm(snowoff_vh_mean, self.norm_dict['vh'])
-            aerosol_optical_thickness = calc_norm(aerosol_optical_thickness, self.norm_dict['AOT'])
-            coastal_aerosol = calc_norm(coastal_aerosol, self.norm_dict['coastal'])
-            blue = calc_norm(blue, self.norm_dict['blue'])
-            green = calc_norm(green, self.norm_dict['green'])
-            red = calc_norm(red, self.norm_dict['red'])
-            red_edge1 = calc_norm(red_edge1, self.norm_dict['red_edge1'])
-            red_edge2 = calc_norm(red_edge2, self.norm_dict['red_edge2'])
-            red_edge3 = calc_norm(red_edge3, self.norm_dict['red_edge3'])
-            nir = calc_norm(nir, self.norm_dict['nir'])
-            water_vapor = calc_norm(water_vapor, self.norm_dict['water_vapor'])
-            swir1 = calc_norm(swir1, self.norm_dict['swir1'])
-            swir2 = calc_norm(swir2, self.norm_dict['swir2'])
-            scene_class_map = calc_norm(scene_class_map, self.norm_dict['scene_class_map'])
-            water_vapor_product = calc_norm(water_vapor_product, self.norm_dict['water_vapor_product'])
-            elevation = calc_norm(elevation, self.norm_dict['elevation'])
-            ndvi = torch.nan_to_num(calc_norm(ndvi, [-1, 1]), 0)
-            ndsi = torch.nan_to_num(calc_norm(ndsi, [-1, 1]), 0)
-            ndwi = torch.nan_to_num(calc_norm(ndwi, [-1, 1]), 0)
-            snowon_cr = torch.nan_to_num(calc_norm(snowon_cr, self.norm_dict['cr']), 0)
-            snowoff_cr = torch.nan_to_num(calc_norm(snowoff_cr, self.norm_dict['cr']), 0)
-            delta_cr = torch.nan_to_num(calc_norm(delta_cr, self.norm_dict['delta_cr']), 0)
+            aso_sd = torch.clamp(calc_norm(aso_sd, self.norm_dict['aso_sd']), 0, 1)
+            snowon_vv = torch.clamp(calc_norm(snowon_vv, self.norm_dict['vv']), 0, 1)
+            snowon_vh = torch.clamp(calc_norm(snowon_vh, self.norm_dict['vh']), 0, 1)
+            snowoff_vv = torch.clamp(calc_norm(snowoff_vv, self.norm_dict['vv']), 0, 1)
+            snowoff_vh = torch.clamp(calc_norm(snowoff_vh, self.norm_dict['vh']), 0, 1)
+            snowon_vv_mean = torch.clamp(calc_norm(snowon_vv_mean, self.norm_dict['vv']), 0, 1)
+            snowon_vh_mean = torch.clamp(calc_norm(snowon_vh_mean, self.norm_dict['vh']), 0, 1)
+            snowoff_vv_mean = torch.clamp(calc_norm(snowoff_vv_mean, self.norm_dict['vv']), 0, 1)
+            snowoff_vh_mean = torch.clamp(calc_norm(snowoff_vh_mean, self.norm_dict['vh']), 0, 1)
+            aerosol_optical_thickness = torch.clamp(calc_norm(aerosol_optical_thickness, self.norm_dict['AOT']), 0, 1)
+            coastal_aerosol = torch.clamp(calc_norm(coastal_aerosol, self.norm_dict['coastal']), 0, 1)
+            blue = torch.clamp(calc_norm(blue, self.norm_dict['blue']), 0, 1)
+            green = torch.clamp(calc_norm(green, self.norm_dict['green']), 0, 1)
+            red = torch.clamp(calc_norm(red, self.norm_dict['red']), 0, 1)
+            red_edge1 = torch.clamp(calc_norm(red_edge1, self.norm_dict['red_edge1']), 0, 1)
+            red_edge2 = torch.clamp(calc_norm(red_edge2, self.norm_dict['red_edge2']), 0, 1)
+            red_edge3 = torch.clamp(calc_norm(red_edge3, self.norm_dict['red_edge3']), 0, 1)
+            nir = torch.clamp(calc_norm(nir, self.norm_dict['nir']), 0, 1)
+            water_vapor = torch.clamp(calc_norm(water_vapor, self.norm_dict['water_vapor']), 0, 1)
+            swir1 = torch.clamp(calc_norm(swir1, self.norm_dict['swir1']), 0, 1)
+            swir2 = torch.clamp(calc_norm(swir2, self.norm_dict['swir2']), 0, 1)
+            scene_class_map = torch.clamp(calc_norm(scene_class_map, self.norm_dict['scene_class_map']), 0, 1)
+            water_vapor_product = torch.clamp(calc_norm(water_vapor_product, self.norm_dict['water_vapor_product']), 0, 1)
+            elevation = torch.clamp(calc_norm(elevation, self.norm_dict['elevation']), 0, 1)
+            latitude = torch.clamp(calc_norm(latitude, self.norm_dict['latitude']), 0, 1)
+            longitude = torch.clamp(calc_norm(longitude, self.norm_dict['longitude']), 0, 1)
+            dowy = torch.clamp(torch.nan_to_num(calc_norm(dowy, [0, 365]), 0), 0, 1)
+            ndvi = torch.clamp(torch.nan_to_num(calc_norm(ndvi, [-1, 1]), 0), 0, 1)
+            ndsi = torch.clamp(torch.nan_to_num(calc_norm(ndsi, [-1, 1]), 0), 0, 1)
+            ndwi = torch.clamp(torch.nan_to_num(calc_norm(ndwi, [-1, 1]), 0), 0, 1)
+            snowon_cr = torch.clamp(torch.nan_to_num(calc_norm(snowon_cr, self.norm_dict['cr']), 0), 0, 1)
+            snowoff_cr = torch.clamp(torch.nan_to_num(calc_norm(snowoff_cr, self.norm_dict['cr']), 0), 0, 1)
+            delta_cr = torch.clamp(torch.nan_to_num(calc_norm(delta_cr, self.norm_dict['delta_cr']), 0), 0, 1)
 
         data_dict = {'aso_sd':aso_sd[None, :, :],
                     'snowon_vv': snowon_vv[None, :, :],
@@ -191,6 +190,9 @@ class Dataset(torch.utils.data.Dataset):
                     'water_vapor_product': water_vapor_product[None, :, :],
                     'fcf': fcf[None, :, :],
                     'elevation': elevation[None, :, :],
+                    'latitude': latitude[None, :, :],
+                    'longitude': longitude[None, :, :],
+                    'dowy': dowy[None, :, :],
                     'ndvi': ndvi[None, :, :],
                     'ndsi': ndsi[None, :, :],
                     'ndwi': ndwi[None, :, :],
@@ -199,9 +201,11 @@ class Dataset(torch.utils.data.Dataset):
                     'delta_cr': delta_cr[None, :, :],
                     'aso_gap_map': aso_gap_map[None, :, :],
                     'rtc_gap_map': rtc_gap_map[None, :, :],
-                    'rtc_mean_gap_map': rtc_mean_gap_map[None, :, :]}
+                    'rtc_mean_gap_map': rtc_mean_gap_map[None, :, :],
+                    's2_gap_map': s2_gap_map[None, :, :]}
 
         # Select only the specified channels
         selected_data = [data_dict[channel] for channel in self.selected_channels]
         
         return tuple(selected_data)
+

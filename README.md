@@ -56,7 +56,24 @@ Our dataset includes:
 - COP30 digital elevation model
 - Airborne Snow Observatory (ASO) lidar snow depth maps
 
-Snow-on Sentinel-1 and 2 data were collected nearby in time to corresponding ASO acquistions. All products were reprojected to the appropriate UTM zone and resampled to a matching 50 m grid. Products were divided up spatially into training, testing, and validation tiles and subset to produce a machine-learning ready dataset. Our training dataset includes ~25000 image stacks, each of which includes all of the above listed inputs. 
+Snow-on Sentinel-1 and 2 data were collected nearby in time to corresponding ASO acquistions. All products were reprojected to the appropriate UTM zone and resampled to a matching 50 m grid. Products were divided up spatially into training, testing, and validation tiles and subset to produce a machine-learning ready dataset. Our training dataset includes ~37,000 image stacks, each of which includes all of the above listed inputs. 
+
+### Installation
+Download and install Miniconda Set up Mamba
+```
+$ conda install mamba -n base -c conda-forge
+```
+Clone the repo and set up the environment
+```
+$ git clone https://github.com/geo-smart/crunchy-snow.git
+$ cd ./crunchy-snow
+$ mamba env create -f environment.yml
+$ conda activate crunchy-snow
+```
+Install the package locally
+```
+$ pip install -e .
+```
 
 ### Additional resources or background reading
 - [spicy-snow background](https://github.com/SnowEx/spicy-snow/blob/main/contrib/brencher/tutorial/01background.ipynb)

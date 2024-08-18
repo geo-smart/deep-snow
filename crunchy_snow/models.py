@@ -2,224 +2,224 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# class SimpleCNN(nn.Module):
-#     def __init__(self, n_input_channels, out_channels=1):
-#         super(SimpleCNN, self).__init__()
-#         self.conv1 = nn.Conv2d(n_input_channels, 32, kernel_size=3, padding=1)
-#         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-#         self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-#         self.conv4 = nn.Conv2d(128, 64, kernel_size=3, padding=1)
-#         self.conv5 = nn.Conv2d(64, 32, kernel_size=3, padding=1)
-#         self.conv6 = nn.Conv2d(32, out_channels, kernel_size=3, padding=1)
-#         self.relu = nn.ReLU()
+class SimpleCNN(nn.Module):
+    def __init__(self, n_input_channels, out_channels=1):
+        super(SimpleCNN, self).__init__()
+        self.conv1 = nn.Conv2d(n_input_channels, 32, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.conv4 = nn.Conv2d(128, 64, kernel_size=3, padding=1)
+        self.conv5 = nn.Conv2d(64, 32, kernel_size=3, padding=1)
+        self.conv6 = nn.Conv2d(32, out_channels, kernel_size=3, padding=1)
+        self.relu = nn.ReLU()
 
-#     def forward(self, x):
-#         x = self.relu(self.conv1(x))
-#         x = self.relu(self.conv2(x))
-#         x = self.relu(self.conv3(x))
-#         x = self.relu(self.conv4(x))
-#         x = self.relu(self.conv5(x))
-#         x = self.conv6(x)  # No activation function here
-#         return x
+    def forward(self, x):
+        x = self.relu(self.conv1(x))
+        x = self.relu(self.conv2(x))
+        x = self.relu(self.conv3(x))
+        x = self.relu(self.conv4(x))
+        x = self.relu(self.conv5(x))
+        x = self.conv6(x)  # No activation function here
+        return x
 
-# class UNet(nn.Module):
-#     def __init__(self, n_input_channels=12, out_channels=1):
-#         super(UNet, self).__init__()
+class UNet(nn.Module):
+    def __init__(self, n_input_channels=12, out_channels=1):
+        super(UNet, self).__init__()
         
-#         def conv_block(n_input_channels, out_channels):
-#             return nn.Sequential(
-#                 nn.Conv2d(n_input_channels, out_channels, kernel_size=3, padding=1),
-#                 nn.ReLU(inplace=True),
-#                 nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-#                 nn.ReLU(inplace=True)
-#             )
+        def conv_block(n_input_channels, out_channels):
+            return nn.Sequential(
+                nn.Conv2d(n_input_channels, out_channels, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True)
+            )
         
-#         def up_conv(n_input_channels, out_channels):
-#             return nn.ConvTranspose2d(n_input_channels, out_channels, kernel_size=2, stride=2)
+        def up_conv(n_input_channels, out_channels):
+            return nn.ConvTranspose2d(n_input_channels, out_channels, kernel_size=2, stride=2)
         
-#         self.encoder1 = conv_block(n_input_channels, 64)
-#         self.encoder2 = conv_block(64, 128)
-#         self.encoder3 = conv_block(128, 256)
-#         self.encoder4 = conv_block(256, 512)
+        self.encoder1 = conv_block(n_input_channels, 64)
+        self.encoder2 = conv_block(64, 128)
+        self.encoder3 = conv_block(128, 256)
+        self.encoder4 = conv_block(256, 512)
         
-#         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         
-#         self.bottleneck = conv_block(512, 1024)
+        self.bottleneck = conv_block(512, 1024)
         
-#         self.upconv4 = up_conv(1024, 512)
-#         self.decoder4 = conv_block(1024, 512)
-#         self.upconv3 = up_conv(512, 256)
-#         self.decoder3 = conv_block(512, 256)
-#         self.upconv2 = up_conv(256, 128)
-#         self.decoder2 = conv_block(256, 128)
-#         self.upconv1 = up_conv(128, 64)
-#         self.decoder1 = conv_block(128, 64)
+        self.upconv4 = up_conv(1024, 512)
+        self.decoder4 = conv_block(1024, 512)
+        self.upconv3 = up_conv(512, 256)
+        self.decoder3 = conv_block(512, 256)
+        self.upconv2 = up_conv(256, 128)
+        self.decoder2 = conv_block(256, 128)
+        self.upconv1 = up_conv(128, 64)
+        self.decoder1 = conv_block(128, 64)
         
-#         self.final_conv = nn.Conv2d(64, out_channels, kernel_size=1)
+        self.final_conv = nn.Conv2d(64, out_channels, kernel_size=1)
     
-#     def forward(self, x):
-#         enc1 = self.encoder1(x)
-#         enc2 = self.encoder2(self.pool(enc1))
-#         enc3 = self.encoder3(self.pool(enc2))
-#         enc4 = self.encoder4(self.pool(enc3))
+    def forward(self, x):
+        enc1 = self.encoder1(x)
+        enc2 = self.encoder2(self.pool(enc1))
+        enc3 = self.encoder3(self.pool(enc2))
+        enc4 = self.encoder4(self.pool(enc3))
         
-#         bottleneck = self.bottleneck(self.pool(enc4))
+        bottleneck = self.bottleneck(self.pool(enc4))
         
-#         dec4 = self.upconv4(bottleneck)
-#         dec4 = torch.cat((dec4, enc4), dim=1)
-#         dec4 = self.decoder4(dec4)
+        dec4 = self.upconv4(bottleneck)
+        dec4 = torch.cat((dec4, enc4), dim=1)
+        dec4 = self.decoder4(dec4)
         
-#         dec3 = self.upconv3(dec4)
-#         dec3 = torch.cat((dec3, enc3), dim=1)
-#         dec3 = self.decoder3(dec3)
+        dec3 = self.upconv3(dec4)
+        dec3 = torch.cat((dec3, enc3), dim=1)
+        dec3 = self.decoder3(dec3)
         
-#         dec2 = self.upconv2(dec3)
-#         dec2 = torch.cat((dec2, enc2), dim=1)
-#         dec2 = self.decoder2(dec2)
+        dec2 = self.upconv2(dec3)
+        dec2 = torch.cat((dec2, enc2), dim=1)
+        dec2 = self.decoder2(dec2)
         
-#         dec1 = self.upconv1(dec2)
-#         dec1 = torch.cat((dec1, enc1), dim=1)
-#         dec1 = self.decoder1(dec1)
+        dec1 = self.upconv1(dec2)
+        dec1 = torch.cat((dec1, enc1), dim=1)
+        dec1 = self.decoder1(dec1)
         
-#         return self.final_conv(dec1)
+        return self.final_conv(dec1)
 
-# class ResidualBlock(nn.Module):
-#     def __init__(self, n_input_channels, out_channels):
-#         super(ResidualBlock, self).__init__()
-#         self.conv1 = nn.Conv2d(n_input_channels, out_channels, kernel_size=3, padding=1)
-#         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
-#         self.shortcut = nn.Sequential()
-#         if n_input_channels != out_channels:
-#             self.shortcut = nn.Sequential(
-#                 nn.Conv2d(n_input_channels, out_channels, kernel_size=1),
-#             )
+class ResidualBlock(nn.Module):
+    def __init__(self, n_input_channels, out_channels):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = nn.Conv2d(n_input_channels, out_channels, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        self.shortcut = nn.Sequential()
+        if n_input_channels != out_channels:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(n_input_channels, out_channels, kernel_size=1),
+            )
 
-#     def forward(self, x):
-#         out = F.relu(self.conv1(x))
-#         out = self.conv2(out)
-#         out += self.shortcut(x)
-#         out = F.relu(out)
-#         return out
+    def forward(self, x):
+        out = F.relu(self.conv1(x))
+        out = self.conv2(out)
+        out += self.shortcut(x)
+        out = F.relu(out)
+        return out
 
-# class ResUNet(nn.Module):
-#     def __init__(self, n_input_channels=12):
-#         super(ResUNet, self).__init__()
-#         self.encoder1 = ResidualBlock(n_input_channels, 64)
-#         self.encoder2 = ResidualBlock(64, 128)
-#         self.encoder3 = ResidualBlock(128, 256)
-#         self.encoder4 = ResidualBlock(256, 512)
+class ResUNet(nn.Module):
+    def __init__(self, n_input_channels=12):
+        super(ResUNet, self).__init__()
+        self.encoder1 = ResidualBlock(n_input_channels, 64)
+        self.encoder2 = ResidualBlock(64, 128)
+        self.encoder3 = ResidualBlock(128, 256)
+        self.encoder4 = ResidualBlock(256, 512)
 
-#         self.pool = nn.MaxPool2d(2, 2)
+        self.pool = nn.MaxPool2d(2, 2)
 
-#         self.decoder1 = ResidualBlock(512, 256)
-#         self.decoder2 = ResidualBlock(256, 128)
-#         self.decoder3 = ResidualBlock(128, 64)
-#         self.decoder4 = ResidualBlock(64, 64)
+        self.decoder1 = ResidualBlock(512, 256)
+        self.decoder2 = ResidualBlock(256, 128)
+        self.decoder3 = ResidualBlock(128, 64)
+        self.decoder4 = ResidualBlock(64, 64)
 
-#         self.upconv1 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)
-#         self.upconv2 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)
-#         self.upconv3 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
+        self.upconv1 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)
+        self.upconv2 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)
+        self.upconv3 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
 
-#         self.final_conv = nn.Conv2d(64, 1, kernel_size=1)
+        self.final_conv = nn.Conv2d(64, 1, kernel_size=1)
 
-#     def forward(self, x):
-#         # Encoder
-#         e1 = self.encoder1(x)
-#         e2 = self.encoder2(self.pool(e1))
-#         e3 = self.encoder3(self.pool(e2))
-#         e4 = self.encoder4(self.pool(e3))
+    def forward(self, x):
+        # Encoder
+        e1 = self.encoder1(x)
+        e2 = self.encoder2(self.pool(e1))
+        e3 = self.encoder3(self.pool(e2))
+        e4 = self.encoder4(self.pool(e3))
 
-#         # Decoder
-#         d1 = self.upconv1(e4)
-#         d1 = torch.cat((d1, e3), dim=1)
-#         d1 = self.decoder1(d1)
+        # Decoder
+        d1 = self.upconv1(e4)
+        d1 = torch.cat((d1, e3), dim=1)
+        d1 = self.decoder1(d1)
 
-#         d2 = self.upconv2(d1)
-#         d2 = torch.cat((d2, e2), dim=1)
-#         d2 = self.decoder2(d2)
+        d2 = self.upconv2(d1)
+        d2 = torch.cat((d2, e2), dim=1)
+        d2 = self.decoder2(d2)
 
-#         d3 = self.upconv3(d2)
-#         d3 = torch.cat((d3, e1), dim=1)
-#         d3 = self.decoder3(d3)
+        d3 = self.upconv3(d2)
+        d3 = torch.cat((d3, e1), dim=1)
+        d3 = self.decoder3(d3)
 
-#         d4 = self.decoder4(d3)
+        d4 = self.decoder4(d3)
 
-#         out = self.final_conv(d4)
-#         return out
+        out = self.final_conv(d4)
+        return out
 
-# class PatchEmbedding(nn.Module):
-#     def __init__(self, n_input_channels=12, patch_size=16, emb_size=768, img_size=128):
-#         super(PatchEmbedding, self).__init__()
-#         self.patch_size = patch_size
-#         self.proj = nn.Conv2d(n_input_channels, emb_size, kernel_size=patch_size, stride=patch_size)
-#         self.cls_token = nn.Parameter(torch.randn(1, 1, emb_size))
-#         self.pos_embedding = nn.Parameter(torch.randn((img_size // patch_size) ** 2 + 1, emb_size))
+class PatchEmbedding(nn.Module):
+    def __init__(self, n_input_channels=12, patch_size=16, emb_size=768, img_size=128):
+        super(PatchEmbedding, self).__init__()
+        self.patch_size = patch_size
+        self.proj = nn.Conv2d(n_input_channels, emb_size, kernel_size=patch_size, stride=patch_size)
+        self.cls_token = nn.Parameter(torch.randn(1, 1, emb_size))
+        self.pos_embedding = nn.Parameter(torch.randn((img_size // patch_size) ** 2 + 1, emb_size))
 
-#     def forward(self, x):
-#         b, c, h, w = x.shape
-#         x = self.proj(x)  # (b, emb_size, h/patch_size, w/patch_size)
-#         x = x.view(b, self.proj.out_channels, -1).permute(0, 2, 1)  # (b, num_patches, emb_size)
-#         cls_tokens = self.cls_token.expand(b, -1, -1)
-#         x = torch.cat((cls_tokens, x), dim=1)
-#         x += self.pos_embedding
-#         return x
+    def forward(self, x):
+        b, c, h, w = x.shape
+        x = self.proj(x)  # (b, emb_size, h/patch_size, w/patch_size)
+        x = x.view(b, self.proj.out_channels, -1).permute(0, 2, 1)  # (b, num_patches, emb_size)
+        cls_tokens = self.cls_token.expand(b, -1, -1)
+        x = torch.cat((cls_tokens, x), dim=1)
+        x += self.pos_embedding
+        return x
 
-# class VisionTransformer(nn.Module):
-#     def __init__(self, n_input_channels=12, patch_size=16, emb_size=768, img_size=128, depth=12, num_heads=8, dropout=0.1):
-#         super(VisionTransformer, self).__init__()
-#         self.patch_embedding = PatchEmbedding(n_input_channels, patch_size, emb_size, img_size)
-#         self.transformer = nn.Sequential(
-#             *[TransformerBlock(emb_size, num_heads, dropout) for _ in range(depth)]
-#         )
-#         self.mlp_head = nn.Sequential(
-#             nn.LayerNorm(emb_size),
-#             nn.Linear(emb_size, img_size * img_size),
-#             nn.Unflatten(1, (1, img_size, img_size))
-#         )
+class VisionTransformer(nn.Module):
+    def __init__(self, n_input_channels=12, patch_size=16, emb_size=768, img_size=128, depth=12, num_heads=8, dropout=0.1):
+        super(VisionTransformer, self).__init__()
+        self.patch_embedding = PatchEmbedding(n_input_channels, patch_size, emb_size, img_size)
+        self.transformer = nn.Sequential(
+            *[TransformerBlock(emb_size, num_heads, dropout) for _ in range(depth)]
+        )
+        self.mlp_head = nn.Sequential(
+            nn.LayerNorm(emb_size),
+            nn.Linear(emb_size, img_size * img_size),
+            nn.Unflatten(1, (1, img_size, img_size))
+        )
 
-#     def forward(self, x):
-#         x = self.patch_embedding(x)
-#         x = self.transformer(x)
-#         x = x[:, 0]  # Use the class token
-#         x = self.mlp_head(x)
-#         return x
+    def forward(self, x):
+        x = self.patch_embedding(x)
+        x = self.transformer(x)
+        x = x[:, 0]  # Use the class token
+        x = self.mlp_head(x)
+        return x
 
-# class MultiHeadAttention(nn.Module):
-#     def __init__(self, emb_size=768, num_heads=8, dropout=0.1):
-#         super(MultiHeadAttention, self).__init__()
-#         self.emb_size = emb_size
-#         self.num_heads = num_heads
-#         self.qkv = nn.Linear(emb_size, emb_size * 3)
-#         self.att_drop = nn.Dropout(dropout)
-#         self.proj = nn.Linear(emb_size, emb_size)
+class MultiHeadAttention(nn.Module):
+    def __init__(self, emb_size=768, num_heads=8, dropout=0.1):
+        super(MultiHeadAttention, self).__init__()
+        self.emb_size = emb_size
+        self.num_heads = num_heads
+        self.qkv = nn.Linear(emb_size, emb_size * 3)
+        self.att_drop = nn.Dropout(dropout)
+        self.proj = nn.Linear(emb_size, emb_size)
 
-#     def forward(self, x):
-#         qkv = self.qkv(x).chunk(3, dim=-1)
-#         q, k, v = [t.view(t.size(0), -1, self.num_heads, t.size(-1) // self.num_heads).transpose(1, 2) for t in qkv]
-#         dots = torch.matmul(q, k.transpose(-1, -2)) / self.emb_size ** 0.5
-#         attn = torch.softmax(dots, dim=-1)
-#         attn = self.att_drop(attn)
-#         out = torch.matmul(attn, v).transpose(1, 2).contiguous().view(x.size(0), -1, self.emb_size)
-#         out = self.proj(out)
-#         return out
+    def forward(self, x):
+        qkv = self.qkv(x).chunk(3, dim=-1)
+        q, k, v = [t.view(t.size(0), -1, self.num_heads, t.size(-1) // self.num_heads).transpose(1, 2) for t in qkv]
+        dots = torch.matmul(q, k.transpose(-1, -2)) / self.emb_size ** 0.5
+        attn = torch.softmax(dots, dim=-1)
+        attn = self.att_drop(attn)
+        out = torch.matmul(attn, v).transpose(1, 2).contiguous().view(x.size(0), -1, self.emb_size)
+        out = self.proj(out)
+        return out
 
-# class TransformerBlock(nn.Module):
-#     def __init__(self, emb_size=768, num_heads=8, dropout=0.1, forward_expansion=4):
-#         super(TransformerBlock, self).__init__()
-#         self.norm1 = nn.LayerNorm(emb_size)
-#         self.attn = MultiHeadAttention(emb_size, num_heads, dropout)
-#         self.norm2 = nn.LayerNorm(emb_size)
-#         self.ff = nn.Sequential(
-#             nn.Linear(emb_size, forward_expansion * emb_size),
-#             nn.GELU(),
-#             nn.Linear(forward_expansion * emb_size, emb_size),
-#             nn.Dropout(dropout)
-#         )
+class TransformerBlock(nn.Module):
+    def __init__(self, emb_size=768, num_heads=8, dropout=0.1, forward_expansion=4):
+        super(TransformerBlock, self).__init__()
+        self.norm1 = nn.LayerNorm(emb_size)
+        self.attn = MultiHeadAttention(emb_size, num_heads, dropout)
+        self.norm2 = nn.LayerNorm(emb_size)
+        self.ff = nn.Sequential(
+            nn.Linear(emb_size, forward_expansion * emb_size),
+            nn.GELU(),
+            nn.Linear(forward_expansion * emb_size, emb_size),
+            nn.Dropout(dropout)
+        )
 
-#     def forward(self, x):
-#         x = x + self.attn(self.norm1(x))
-#         x = x + self.ff(self.norm2(x))
-#         return x
+    def forward(self, x):
+        x = x + self.attn(self.norm1(x))
+        x = x + self.ff(self.norm2(x))
+        return x
 
 def conv3x3(in_channels, out_channels, stride=1, padding=1, bias=True):
     return nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=padding, bias=bias)

@@ -22,6 +22,13 @@
 - Kathrine Udell-Lopez
 
 2024 NASA Earth Sciences and UW Hackweek team:
+- Ekaterina (Katya) Bashkova
+- Manda Chasteen
+- Sarah Kilpatrick
+- Isabella Chittumuri
+- Kavita Mitkari
+- Shashank Bhushan (Helper)
+- Adrian Marziliano (Helper)
 
 ### The problem
 Seasonal snow provides drinking water for billions, but current global measurements of snow depth lack adequate spatial and temporal resolution for effective resource management--especially in mountainous terrain. Recent work has demonstrated the potential to retrieve snow-depth measurements from Sentinel-1 synthetic aperture radar (SAR) backscatter data. However, comparisons with airborne lidar data suggest that existing snow depth retrieval algorithms fail to capture the full complexity of relationships between snow depth, terrain, vegetation, and SAR backscatter, the physics of which are poorly understood. We suggest that a machine learning model may be able to effectively learn these relationships and retrieve snow depth from SAR backscatter with improved accuracy. 

@@ -11,3 +11,5 @@ dependencies:
   - nb_conda_kernels
   - seaborn
   - h5netcdf
+  - planetary-computer
+  

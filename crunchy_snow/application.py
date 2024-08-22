@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 import numpy as np
 import xarray as xr
 import pystac_client
@@ -8,10 +10,19 @@ from rioxarray.merge import merge_arrays
 from urllib.request import urlretrieve
 from pyproj import Proj, transform
 from os.path import basename, exists, expanduser, join
+import os
 import geopandas as gpd
 from shapely.geometry import shape
 import odc.stac
 from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
+import torch
+from glob import glob
+import seaborn as sns
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+import math
 
 from crunchy_snow.utils import calc_norm, undo_norm, db_scale
 from crunchy_snow.dataset import norm_dict
@@ -31,6 +42,8 @@ def get_parser():
     parser.add_argument("aoi", type=parse_bounding_box, help="area of interest in format 'minlon minlat maxlon maxlat'")
     parser.add_argument("cloud_cover", type=float, help="percent cloud cover allowed in Sentinel-2 images (0-100)")
     parser.add_argument("delete_inputs", type=str, help="if True, delete input dataset from disk after processing")
+    parser.add_argument("out_dir", type=str, help="directory to write inputs and outputs to")
+    parser.add_argument("model_path", type=str, help="path to model weights to use")
     
     return parser
 
@@ -43,8 +56,8 @@ def date_range(date_str, padding):
     end_date = date + timedelta(days=padding)
     
     # Convert the dates back to strings in the desired format
-    start_date_str = start_date.strftime("%Y%m%d")
-    end_date_str = end_date.strftime("%Y%m%d")
+    start_date_str = start_date.strftime("%Y-%m-%d")
+    end_date_str = end_date.strftime("%Y-%m-%d")
     
     # Return the date range string
     return f"{start_date_str}/{end_date_str}"
@@ -63,7 +76,7 @@ def download_fcf(out_fp):
     # download just forest cover fraction to out file
     url_download(fcf_url, out_fp)
 
-def download_data(aoi, target_date, snowoff_date):
+def download_data(aoi, target_date, snowoff_date,  out_dir, cloud_cover=25):
 
     aoi = {
     "type": "Polygon",
@@ -89,6 +102,7 @@ def download_data(aoi, target_date, snowoff_date):
     modifier=planetary_computer.sign_inplace)
 
     # Search for snow-on Sentinel-1 data
+    print('searching for Sentinel-1 snow-on data')
     search = stac.search(
         intersects=aoi,
         datetime=snowon_date_range,
@@ -110,6 +124,7 @@ def download_data(aoi, target_date, snowoff_date):
     snowon_s1_ds = snowon_s1_ds.rename({'vv': 'snowon_vv', 'vh': 'snowon_vh'})
 
     # Search for snow-off Sentinel-1 data
+    print('searching for Sentinel-1 snow-off data')
     search = stac.search(
         intersects=aoi,
         datetime=snowoff_date_range,
@@ -128,11 +143,12 @@ def download_data(aoi, target_date, snowoff_date):
     snowoff_s1_ds = snowoff_s1_ds.rename({'vv': 'snowoff_vv', 'vh': 'snowoff_vh'})
 
     # search for Sentinel-2 data
+    print('searching for Sentinel-2 snow-on data')
     search = stac.search(
     intersects=aoi,
     datetime=snowon_date_range,
     collections=["sentinel-2-l2a"],
-    query={"eo:cloud_cover": {"lt": 25}})
+    query={"eo:cloud_cover": {"lt": cloud_cover}})
     items = search.item_collection()
     
     s2_ds = odc.stac.load(items,chunks={"x": 2048, "y": 2048},
@@ -144,6 +160,7 @@ def download_data(aoi, target_date, snowoff_date):
     s2_ds = s2_ds.median(dim='time').squeeze().compute()
 
     # Search for COP30 elevation date
+    print('searching for COP30 dem data')
     search = stac.search(
     collections=["cop-dem-glo-30"],
     intersects=aoi)
@@ -156,12 +173,11 @@ def download_data(aoi, target_date, snowoff_date):
     cop30_da = merge_arrays(data)
     cop30_ds = cop30_da.rename('elevation').squeeze().to_dataset()
     
-    # clip to aoi
-    cop30_ds = cop30_ds.rio.clip_box(*aoi_gpd.total_bounds, crs="EPSG:4326").compute()
     # reproject to match radar dataset
-    cop30_ds = cop30_ds.rio.reproject_match(snowon_s1_ds, resampling=rio.enums.Resampling.bilinear)
+    cop30_ds = cop30_ds.rio.reproject_match(snowon_s1_ds, resampling=rio.enums.Resampling.bilinear).compute()
 
     # download fractional forest cover data
+    print('downloading fractional forest cover data')
     fcf_path ='/tmp/fcf_global.tif'
     download_fcf(fcf_path)
     
@@ -169,14 +185,17 @@ def download_data(aoi, target_date, snowoff_date):
     fcf_ds = rxr.open_rasterio(fcf_path)
     
     # clip to aoi
+    ## MAKE LARGER BBOX TO AVOID EDGE PROBLEMS
     fcf_ds = fcf_ds.rio.clip_box(*aoi_gpd.total_bounds,crs="EPSG:4326") 
     # promote to dataset
     fcf_ds = fcf_ds.rename('fcf').squeeze().to_dataset()
     # reproject to match radar dataset
     fcf_ds = fcf_ds.rio.reproject_match(snowon_s1_ds, resampling=rio.enums.Resampling.bilinear)
-
+    # set values above 100 to nodata
+    fcf_ds['fcf'] = fcf_ds['fcf'].where(fcf_ds['fcf'] <= 100, np.nan)/100
 
     # combine datasets
+    print('combining datasets')
     ds_list = [snowon_s1_ds, snowoff_s1_ds, s2_ds, cop30_ds, fcf_ds]
     ds = xr.merge(ds_list, compat='override', join='override').squeeze()
 
@@ -207,19 +226,128 @@ def download_data(aoi, target_date, snowoff_date):
     ds['latitude'] = (('y', 'x'), lat)
     ds['longitude'] = (('y', 'x'), lon)
 
-    ds.to_netcdf('../data/model_inputs.nc')
+    data_fn = f'{out_dir}/model_inputs.nc'
+    print('writing input data')
+    ds.to_netcdf(data_fn)
+    print('done!')
 
+def apply_model(out_dir, model_path, delete_inputs=False):
+    data_fn = f'{out_dir}/model_inputs.nc'
+    print('reading input data')
+    ds = xr.open_dataset(data_fn)
+    ds = ds.fillna(0)
+
+    data_dict = {}
+    # normalize layers 
+    data_dict['snowon_vv'] = calc_norm(torch.Tensor(ds['snowon_vv'].values), norm_dict['vv'])
+    data_dict['snowon_vh'] = calc_norm(torch.Tensor(ds['snowon_vh'].values), norm_dict['vh'])
+    data_dict['snowoff_vv'] = calc_norm(torch.Tensor(ds['snowoff_vv'].values), norm_dict['vv'])
+    data_dict['snowoff_vh'] = calc_norm(torch.Tensor(ds['snowoff_vh'].values), norm_dict['vh'])
+    data_dict['aerosol_optical_thickness'] = calc_norm(torch.Tensor(ds['AOT'].values), norm_dict['AOT'])
+    data_dict['coastal_aerosol'] = calc_norm(torch.Tensor(ds['B01'].values), norm_dict['coastal'])
+    data_dict['blue'] = calc_norm(torch.Tensor(ds['B02'].values), norm_dict['blue'])
+    data_dict['green'] = calc_norm(torch.Tensor(ds['B03'].values), norm_dict['green'])
+    data_dict['red'] = calc_norm(torch.Tensor(ds['B04'].values), norm_dict['red'])
+    data_dict['red_edge1'] = calc_norm(torch.Tensor(ds['B05'].values), norm_dict['red_edge1'])
+    data_dict['red_edge2'] = calc_norm(torch.Tensor(ds['B06'].values), norm_dict['red_edge2'])
+    data_dict['red_edge3'] = calc_norm(torch.Tensor(ds['B07'].values), norm_dict['red_edge3'])
+    data_dict['nir'] = calc_norm(torch.Tensor(ds['B08'].values), norm_dict['nir'])
+    data_dict['water_vapor'] = calc_norm(torch.Tensor(ds['B09'].values), norm_dict['water_vapor'])
+    data_dict['swir1'] = calc_norm(torch.Tensor(ds['B11'].values), norm_dict['swir1'])
+    data_dict['swir2'] = calc_norm(torch.Tensor(ds['B12'].values), norm_dict['swir2'])
+    data_dict['scene_class_map'] = calc_norm(torch.Tensor(ds['SCL'].values), norm_dict['scene_class_map'])
+    data_dict['water_vapor_product'] = calc_norm(torch.Tensor(ds['WVP'].values), norm_dict['water_vapor_product'])
+    data_dict['elevation'] = calc_norm(torch.Tensor(ds['elevation'].values), norm_dict['elevation'])
+    data_dict['latitude'] = calc_norm(torch.Tensor(ds['latitude'].values), norm_dict['latitude'])
+    data_dict['longitude'] = calc_norm(torch.Tensor(ds['longitude'].values), norm_dict['longitude'])
+    # data_dict['dowy'] = calc_norm(torch.Tensor(dowy, [0, 365])
+    data_dict['ndvi'] = calc_norm(torch.Tensor(ds['ndvi'].values), [-1, 1])
+    data_dict['ndsi'] = calc_norm(torch.Tensor(ds['ndsi'].values), [-1, 1])
+    data_dict['ndwi'] = calc_norm(torch.Tensor(ds['ndwi'].values), [-1, 1])
+    data_dict['snowon_cr'] = calc_norm(torch.Tensor(ds['snowon_cr'].values), norm_dict['cr'])
+    data_dict['snowoff_cr'] = calc_norm(torch.Tensor(ds['snowoff_cr'].values), norm_dict['cr'])
+    data_dict['delta_cr'] = calc_norm(torch.Tensor(ds['delta_cr'].values), norm_dict['delta_cr'])
     
+    data_dict['fcf'] = torch.Tensor(ds['fcf'].values)
+
+    # clamp values, add dimensions
+    data_dict = {key: torch.clamp(data_dict[key], 0, 1)[None, None, :, :] for key in data_dict.keys()}
+
+    # define input channels for model
+    input_channels = [
+        'snowon_vv',
+        'snowon_vh',
+        'snowoff_vv',
+        'snowoff_vh',
+        'blue',
+        'green',
+        'red',
+        'fcf',
+        'elevation',
+        'ndvi',
+        'ndsi',
+        'ndwi',
+        'snowon_cr',
+        'snowoff_cr']
+
+    #load previous model
+    print('loading model')
+    model = crunchy_snow.models.ResDepth(n_input_channels=len(input_channels))
+    model.load_state_dict(torch.load(model_path))
+    model.to('cuda');
+
+    tile_size = 1024
+
+    xmin=0
+    xmax=tile_size
+    ymin=0
+    ymax=tile_size
+    
+    inputs = torch.cat([data_dict[channel] for channel in input_channels], dim=1)
+    inputs_pad = F.pad(inputs, (0, tile_size, 0, tile_size), 'constant', 0)
+    pred_pad = torch.empty_like(inputs_pad[0, 0, :, :])
+    
+    for i in range(math.ceil((len(ds.x)/tile_size))):
+        #print(f'column {i}')
+        for j in range(math.ceil((len(ds.y)/tile_size))):
+            #print(f'row {j}')
+            ymin = j*tile_size
+            ymax = (j+1)*tile_size
+            xmin = i*tile_size
+            xmax = (i+1)*tile_size
+            
+            # predict noise in tile
+            with torch.no_grad():
+                tile_pred_sd = model(inputs_pad[:, :, ymin:ymax, xmin:xmax].to('cuda'))
+            pred_pad[ymin:ymax, xmin:xmax] = tile_pred_sd.detach().squeeze()
+    
+    # recover original dimensions
+    pred_sd = pred_pad[0:(len(ds.y)), 0:(len(ds.x))]
+    # undo normalization
+    pred_sd = undo_norm(pred_sd, crunchy_snow.dataset.norm_dict['aso_sd'])
+    # add to xarray dataset
+    ds['predicted_sd'] = (('y', 'x'), pred_sd.to('cpu').numpy())
+    # write out geotif
+    ds.predicted_sd.rio.to_raster(f'{out_dir}/crunchy-snow_sd.tif')
+
+    if delete_inputs == True:
+        os.remove(data_fn)
+    
+    return ds
 
 def main():
     parser = get_parser()
     args = parser.parse_args()
 
     # download data
-    download_data(args.aoi, args.target_date, args.snowoff_date)
-    if args.delete_inputs == True:
-        !rm ../data/model_inputs.nc
+    download_data(args.aoi, args.target_date, args.snowoff_date, args.cloud_cover, args.out_dir)
+    # apply model
+    ds = apply_model(args.out_dir, args.model_path, args.delete_inputs)
 
+if __name__ == "__main__":
+   main()
+    
+    
     
     
 

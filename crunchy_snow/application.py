@@ -44,6 +44,7 @@ def get_parser():
     parser.add_argument("delete_inputs", type=str, help="if True, delete input dataset from disk after processing")
     parser.add_argument("out_dir", type=str, help="directory to write inputs and outputs to")
     parser.add_argument("model_path", type=str, help="path to model weights to use")
+    parser.add_argument("out_name", type=str, help="name for predicted snow depth geotif")
     
     return parser
 
@@ -231,7 +232,9 @@ def download_data(aoi, target_date, snowoff_date,  out_dir, cloud_cover=25):
     ds.to_netcdf(data_fn)
     print('done!')
 
-def apply_model(out_dir, model_path, delete_inputs=False):
+    return crs
+
+def apply_model(out_dir, model_path, crs, out_name='crunchy-snow_sd.tif', delete_inputs=False):
     data_fn = f'{out_dir}/model_inputs.nc'
     print('reading input data')
     ds = xr.open_dataset(data_fn)
@@ -327,8 +330,10 @@ def apply_model(out_dir, model_path, delete_inputs=False):
     pred_sd = undo_norm(pred_sd, crunchy_snow.dataset.norm_dict['aso_sd'])
     # add to xarray dataset
     ds['predicted_sd'] = (('y', 'x'), pred_sd.to('cpu').numpy())
+
+    ds = ds.rio.write_crs(crs)
     # write out geotif
-    ds.predicted_sd.rio.to_raster(f'{out_dir}/crunchy-snow_sd.tif')
+    ds.predicted_sd.rio.to_raster(f'{out_dir}/{out_name}')
 
     if delete_inputs == True:
         os.remove(data_fn)
@@ -340,9 +345,9 @@ def main():
     args = parser.parse_args()
 
     # download data
-    download_data(args.aoi, args.target_date, args.snowoff_date, args.cloud_cover, args.out_dir)
+    crs = download_data(args.aoi, args.target_date, args.snowoff_date, args.cloud_cover, args.out_dir)
     # apply model
-    ds = apply_model(args.out_dir, args.model_path, args.delete_inputs)
+    ds = apply_model(args.out_dir, args.model_path, args.delete_inputs, crs=crs)
 
 if __name__ == "__main__":
    main()

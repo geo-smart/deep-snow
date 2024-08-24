@@ -12,6 +12,7 @@ from pyproj import Proj, transform
 from os.path import basename, exists, expanduser, join
 import os
 import geopandas as gpd
+import pandas as pd
 from shapely.geometry import shape
 import odc.stac
 from datetime import datetime, timedelta
@@ -19,12 +20,10 @@ import matplotlib.pyplot as plt
 import torch
 from glob import glob
 import seaborn as sns
-import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
 import math
 
-from crunchy_snow.utils import calc_norm, undo_norm, db_scale
+from crunchy_snow.utils import calc_norm, undo_norm, db_scale, calc_dowy
 from crunchy_snow.dataset import norm_dict
 import crunchy_snow.models
 
@@ -77,7 +76,7 @@ def download_fcf(out_fp):
     # download just forest cover fraction to out file
     url_download(fcf_url, out_fp)
 
-def download_data(aoi, target_date, snowoff_date,  out_dir, cloud_cover=25):
+def download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover):
 
     aoi = {
     "type": "Polygon",
@@ -227,14 +226,27 @@ def download_data(aoi, target_date, snowoff_date,  out_dir, cloud_cover=25):
     ds['latitude'] = (('y', 'x'), lat)
     ds['longitude'] = (('y', 'x'), lon)
 
+    # dowy
+    dowy_1d = calc_dowy(pd.to_datetime(target_date).dayofyear)
+    ds['dowy'] = (('y', 'x'), np.full_like(ds['latitude'], dowy_1d))
+
+    # make gap map
+    ds['data_gaps'] = np.multiply(((np.isnan(ds.snowon_vv) +
+                                    np.isnan(ds.snowon_vh) +
+                                    np.isnan(ds.snowoff_vv) +
+                                    np.isnan(ds.snowoff_vh)) > 0), 1)
+    ## NOTE we're taking the median of all bands, need to fix before using scene class map
+    # ds['data_gaps'] = xr.where(ds['SCL'] == 9, 1, ds['data_gaps']) # high probability cloud cover
+    ds['data_gaps'] = xr.where(ds['SCL'] == 0, 1, ds['data_gaps']) # nodata
+
     data_fn = f'{out_dir}/model_inputs.nc'
     print('writing input data')
     ds.to_netcdf(data_fn)
-    print('done!')
+    print('finished preparing dataset!')
 
     return crs
 
-def apply_model(out_dir, model_path, crs, out_name='crunchy-snow_sd.tif', delete_inputs=False):
+def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs):
     data_fn = f'{out_dir}/model_inputs.nc'
     print('reading input data')
     ds = xr.open_dataset(data_fn)
@@ -330,24 +342,61 @@ def apply_model(out_dir, model_path, crs, out_name='crunchy-snow_sd.tif', delete
     pred_sd = undo_norm(pred_sd, crunchy_snow.dataset.norm_dict['aso_sd'])
     # add to xarray dataset
     ds['predicted_sd'] = (('y', 'x'), pred_sd.to('cpu').numpy())
+    # mask areas with missing data
+    # ds['predicted_sd'] = ds['predicted_sd'].where(ds['data_gaps'] == 0)
 
     ds = ds.rio.write_crs(crs)
-    # write out geotif
-    ds.predicted_sd.rio.to_raster(f'{out_dir}/{out_name}')
+    if write_tif == True:
+        # write out geotif
+        ds.predicted_sd.rio.to_raster(f'{out_dir}/{out_name}')
 
     if delete_inputs == True:
         os.remove(data_fn)
+
+    print('prediction finished!')
     
     return ds
 
+def predict_sd(aoi, target_date, snowoff_date, model_path, out_dir, out_name='crunchy-snow_sd.tif', write_tif=True, delete_inputs=False, cloud_cover=25):
+    # download data
+    crs = download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover,)
+    # apply model
+    ds = apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs)
+
+    return ds
+
+def generate_dates(target_date_str, start_date_str):
+    target_date = datetime.strptime(target_date_str, "%Y%m%d")
+    start_date = datetime.strptime(start_date_str, "%Y%m%d")
+    date_list = []
+
+    while target_date >= start_date:
+        date_list.append(target_date.strftime("%Y%m%d"))
+        target_date -= timedelta(days=12)
+
+    return date_list
+
+def predict_sd_ts(aoi, target_date, snowoff_date, model_path, out_dir, out_name='crunchy-snow_sd.tif', delete_inputs=False, cloud_cover=25):
+    ds_list = []
+    date_list = generate_dates(target_date, snowoff_date)
+    for i, date in enumerate(date_list):
+        print('--------------------------------------')
+        print(f'working on {date}, {i+1}/{len(date_list)}')
+        ds = predict_sd(aoi, date, snowoff_date, model_path, out_dir, out_name='crunchy-snow_sd.tif', write_tif=False, delete_inputs=True, cloud_cover=25)
+        ds = ds.expand_dims(time=[pd.to_datetime(date, format="%Y%m%d")])
+        if i > 0:
+            ds = ds.rio.reproject_match(ds_list[0])
+        ds_list.append(ds)
+    ds = xr.concat(ds_list, dim='time')
+    
+    return ds
+        
 def main():
     parser = get_parser()
     args = parser.parse_args()
 
     # download data
-    crs = download_data(args.aoi, args.target_date, args.snowoff_date, args.cloud_cover, args.out_dir)
-    # apply model
-    ds = apply_model(args.out_dir, args.model_path, args.delete_inputs, crs=crs)
+    ds = crunchy_snow(args.aoi, args.target_date, args.snowoff_date, args.model_path, args.out_dir, args.delete_inputs, args.cloud_cover)
 
 if __name__ == "__main__":
    main()

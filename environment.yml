@@ -13,4 +13,5 @@ dependencies:
   - h5netcdf
   - planetary-computer
   - geopandas
+  - odc-stac
   

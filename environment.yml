@@ -12,4 +12,5 @@ dependencies:
   - seaborn
   - h5netcdf
   - planetary-computer
+  - geopandas
   

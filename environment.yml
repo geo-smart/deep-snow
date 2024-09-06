@@ -14,5 +14,5 @@ dependencies:
   - planetary-computer
   - geopandas
   - odc-stac
-  - progressbar
+  - tqdm
   

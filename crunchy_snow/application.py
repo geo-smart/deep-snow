@@ -8,7 +8,7 @@ import rasterio as rio
 import rioxarray as rxr
 from rioxarray.merge import merge_arrays
 from urllib.request import urlretrieve
-import progressbar
+from tqdm import tqdm
 from pyproj import Proj, transform
 from os.path import basename, exists, expanduser, join
 import os
@@ -64,28 +64,40 @@ def date_range(date_str, padding):
     return f"{start_date_str}/{end_date_str}"
 
 
-class MyProgressBar():
+def url_tqdm_hook(t):
+    """Wraps tqdm instance.
+    Don't forget to close() or __exit__()
+    the tqdm instance once you're done with it (easiest using `with` syntax).
+    Example
+    -------
+    >>> with tqdm(...) as t:
+    ...     reporthook = my_hook(t)
+    ...     urllib.urlretrieve(..., reporthook=reporthook)
     """
-    Progress bar class to update url downloads
-    """
-    def __init__(self):
-        self.pbar = None
+    last_b = [0]
 
-    def __call__(self, block_num, block_size, total_size):
-        if not self.pbar:
-            self.pbar=progressbar.ProgressBar(maxval=total_size)
-            self.pbar.start()
+    def update_to(b=1, bsize=1, tsize=None):
+        """
+        b  : int, optional
+            Number of blocks transferred so far [default: 1].
+        bsize  : int, optional
+            Size of each block (in tqdm units) [default: 1].
+        tsize  : int, optional
+            Total size (in tqdm units). If [default: None] remains unchanged.
+        """
+        if tsize is not None:
+            t.total = tsize
+        t.update((b - last_b[0]) * bsize)
+        last_b[0] = b
 
-        downloaded = block_num * block_size
-        if downloaded < total_size:
-            self.pbar.update(downloaded)
-        else:
-            self.pbar.finish()
+    return update_to
 
 def url_download(url, out_fp, overwrite = False):
     # check if file already exists
     if not exists(out_fp) or overwrite == True:
-            urlretrieve(url, out_fp, MyProgressBar())
+        # this tqdm progress bar comes from: https://gist.github.com/leimao/37ff6e990b3226c2c9670a2cd1e4a6f5
+        with tqdm(unit = 'B', unit_scale = True, unit_divisor = 1024, miniters = 1, desc = out_fp) as t:
+            urlretrieve(url, out_fp, reporthook = url_tqdm_hook(t))
     # if already exists. skip download.
     else:
         print('file already exists, skipping')

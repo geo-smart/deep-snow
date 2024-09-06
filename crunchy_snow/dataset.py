@@ -8,8 +8,8 @@ from crunchy_snow.utils import calc_dowy, calc_norm, undo_norm, db_scale
 
 # these are set by finding the min and max across the entire dataset
 norm_dict = {'aso_sd':[0, 25],
-             'vv':[-59, 42],
-             'vh':[-70, 19],
+             'vv':[-59, 30],
+             'vh':[-65, 17],
              'cr':[-43, 16],
              'delta_cr':[-33, 27],
              'AOT':[0, 572],
@@ -27,6 +27,11 @@ norm_dict = {'aso_sd':[0, 25],
              'scene_class_map':[0, 15],
              'water_vapor_product':[0, 6518],
              'elevation':[-100, 9000],
+             'aspect':[0, 360],
+             'slope':[0, 90],
+             'curvature':[-22, 22],
+             'tpi':[-164, 167],
+             'tri':[0, 913],
              'latitude':[-90, 90],
              'longitude':[-180, 180]}
 
@@ -78,6 +83,11 @@ class Dataset(torch.utils.data.Dataset):
         water_vapor_product = torch.from_numpy(np.float32(ds.WVP.values))
         fcf = torch.from_numpy(np.float32(ds.fcf.values))
         elevation = torch.from_numpy(np.float32(ds.elevation.values))
+        slope = torch.from_numpy(np.float32(ds.slope.values))
+        aspect = torch.from_numpy(np.float32(ds.aspect.values))
+        curvature = torch.from_numpy(np.float32(ds.curvature.values))
+        tri = torch.from_numpy(np.float32(ds.tri.values))
+        tpi = torch.from_numpy(np.float32(ds.tpi.values))
         latitude = torch.from_numpy(np.float32(ds.latitude.values))
         longitude = torch.from_numpy(np.float32(ds.longitude.values))
         aso_gap_map = torch.from_numpy(np.float32(ds.aso_gap_map.values))
@@ -124,6 +134,11 @@ class Dataset(torch.utils.data.Dataset):
             scene_class_map = torch.clamp(calc_norm(scene_class_map, self.norm_dict['scene_class_map']), 0, 1)
             water_vapor_product = torch.clamp(calc_norm(water_vapor_product, self.norm_dict['water_vapor_product']), 0, 1)
             elevation = torch.clamp(calc_norm(elevation, self.norm_dict['elevation']), 0, 1)
+            aspect = torch.clamp(calc_norm(aspect, self.norm_dict['aspect']), 0, 1)
+            slope = torch.clamp(calc_norm(slope, self.norm_dict['slope']), 0, 1)
+            curvature = torch.clamp(calc_norm(curvature, self.norm_dict['curvature']), 0, 1)
+            tpi = torch.clamp(calc_norm(tpi, self.norm_dict['tpi']), 0, 1)
+            tri = torch.clamp(calc_norm(tri, self.norm_dict['tri']), 0, 1)
             latitude = torch.clamp(calc_norm(latitude, self.norm_dict['latitude']), 0, 1)
             longitude = torch.clamp(calc_norm(longitude, self.norm_dict['longitude']), 0, 1)
             dowy = torch.clamp(torch.nan_to_num(calc_norm(dowy, [0, 365]), 0), 0, 1)
@@ -159,6 +174,11 @@ class Dataset(torch.utils.data.Dataset):
                     'water_vapor_product': water_vapor_product[None, :, :],
                     'fcf': fcf[None, :, :],
                     'elevation': elevation[None, :, :],
+                    'slope': slope[None, :, :],
+                    'aspect': aspect[None, :, :],
+                    'curvature': curvature[None, :, :],
+                    'tpi': tpi[None, :, :],
+                    'tri': tri[None, :, :],
                     'latitude': latitude[None, :, :],
                     'longitude': longitude[None, :, :],
                     'dowy': dowy[None, :, :],

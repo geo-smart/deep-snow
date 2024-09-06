@@ -8,6 +8,7 @@ import rasterio as rio
 import rioxarray as rxr
 from rioxarray.merge import merge_arrays
 from urllib.request import urlretrieve
+import progressbar
 from pyproj import Proj, transform
 from os.path import basename, exists, expanduser, join
 import os
@@ -62,10 +63,29 @@ def date_range(date_str, padding):
     # Return the date range string
     return f"{start_date_str}/{end_date_str}"
 
+
+class MyProgressBar():
+    """
+    Progress bar class to update url downloads
+    """
+    def __init__(self):
+        self.pbar = None
+
+    def __call__(self, block_num, block_size, total_size):
+        if not self.pbar:
+            self.pbar=progressbar.ProgressBar(maxval=total_size)
+            self.pbar.start()
+
+        downloaded = block_num * block_size
+        if downloaded < total_size:
+            self.pbar.update(downloaded)
+        else:
+            self.pbar.finish()
+
 def url_download(url, out_fp, overwrite = False):
     # check if file already exists
     if not exists(out_fp) or overwrite == True:
-            urlretrieve(url, out_fp)
+            urlretrieve(url, out_fp, MyProgressBar())
     # if already exists. skip download.
     else:
         print('file already exists, skipping')

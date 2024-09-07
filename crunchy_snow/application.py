@@ -11,6 +11,7 @@ from urllib.request import urlretrieve
 from tqdm import tqdm
 from pyproj import Proj, transform
 from os.path import basename, exists, expanduser, join
+from pathlib import Path
 import os
 import geopandas as gpd
 import pandas as pd
@@ -341,7 +342,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs):
     print('loading model')
     model = crunchy_snow.models.ResDepth(n_input_channels=len(input_channels))
     model.load_state_dict(torch.load(model_path))
-    model.to('cuda');
+    model.to('cuda')
 
     tile_size = 1024
 
@@ -427,6 +428,12 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
 
+    # if no cuda raise an error
+    if not torch.cuda.is_available():
+        raise RuntimeError("No cuda enabled GPU found on this platform.")
+
+    # make sure out_dir exists or create it
+    Path(args.out_dir).mkdir(exist_ok = True)
     # download data
     ds = crunchy_snow(args.aoi, args.target_date, args.snowoff_date, args.model_path, args.out_dir, args.delete_inputs, args.cloud_cover)
 

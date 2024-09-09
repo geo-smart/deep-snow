@@ -8,8 +8,10 @@ import rasterio as rio
 import rioxarray as rxr
 from rioxarray.merge import merge_arrays
 from urllib.request import urlretrieve
+from tqdm import tqdm
 from pyproj import Proj, transform
 from os.path import basename, exists, expanduser, join
+from pathlib import Path
 import os
 import geopandas as gpd
 import pandas as pd
@@ -62,10 +64,41 @@ def date_range(date_str, padding):
     # Return the date range string
     return f"{start_date_str}/{end_date_str}"
 
+
+def url_tqdm_hook(t):
+    """Wraps tqdm instance.
+    Don't forget to close() or __exit__()
+    the tqdm instance once you're done with it (easiest using `with` syntax).
+    Example
+    -------
+    >>> with tqdm(...) as t:
+    ...     reporthook = my_hook(t)
+    ...     urllib.urlretrieve(..., reporthook=reporthook)
+    """
+    last_b = [0]
+
+    def update_to(b=1, bsize=1, tsize=None):
+        """
+        b  : int, optional
+            Number of blocks transferred so far [default: 1].
+        bsize  : int, optional
+            Size of each block (in tqdm units) [default: 1].
+        tsize  : int, optional
+            Total size (in tqdm units). If [default: None] remains unchanged.
+        """
+        if tsize is not None:
+            t.total = tsize
+        t.update((b - last_b[0]) * bsize)
+        last_b[0] = b
+
+    return update_to
+
 def url_download(url, out_fp, overwrite = False):
     # check if file already exists
     if not exists(out_fp) or overwrite == True:
-            urlretrieve(url, out_fp)
+        # this tqdm progress bar comes from: https://gist.github.com/leimao/37ff6e990b3226c2c9670a2cd1e4a6f5
+        with tqdm(unit = 'B', unit_scale = True, unit_divisor = 1024, miniters = 1, desc = out_fp) as t:
+            urlretrieve(url, out_fp, reporthook = url_tqdm_hook(t))
     # if already exists. skip download.
     else:
         print('file already exists, skipping')
@@ -309,7 +342,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs):
     print('loading model')
     model = crunchy_snow.models.ResDepth(n_input_channels=len(input_channels))
     model.load_state_dict(torch.load(model_path))
-    model.to('cuda');
+    model.to('cuda')
 
     tile_size = 1024
 
@@ -395,6 +428,12 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
 
+    # if no cuda raise an error
+    if not torch.cuda.is_available():
+        raise RuntimeError("No cuda enabled GPU found on this platform.")
+
+    # make sure out_dir exists or create it
+    Path(args.out_dir).mkdir(exist_ok = True)
     # download data
     ds = crunchy_snow(args.aoi, args.target_date, args.snowoff_date, args.model_path, args.out_dir, args.delete_inputs, args.cloud_cover)
 

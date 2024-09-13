@@ -1,4 +1,4 @@
-# crunchy-snow
+# deep-snow
 ### Machine learning models for Sentinel-1 SAR backscatter snow depth retrieval
 
 ### Collaborators
@@ -33,7 +33,7 @@
 ### The problem
 Seasonal snow provides drinking water for billions, but current global measurements of snow depth lack adequate spatial and temporal resolution for effective resource management--especially in mountainous terrain. Recent work has demonstrated the potential to retrieve snow-depth measurements from Sentinel-1 synthetic aperture radar (SAR) backscatter data. However, comparisons with airborne lidar data suggest that existing snow depth retrieval algorithms fail to capture the full complexity of relationships between snow depth, terrain, vegetation, and SAR backscatter, the physics of which are poorly understood. We suggest that a machine learning model may be able to effectively learn these relationships and retrieve snow depth from SAR backscatter with improved accuracy. 
 
-During the 2023 GeoSMART Hackweek, the crunchy-snow team trained a convolutional neural network to predict snow depth ([see results here](https://docs.google.com/presentation/d/160eq-O48m0FuJgghCHZ4Idysb9zokbMF6Qd1E3HJJww/edit?usp=sharing)). Initial results are promising! But this model needs to be improved, validated, and applied. 
+During the 2023 GeoSMART Hackweek, the deep-snow team trained a convolutional neural network to predict snow depth ([see results here](https://docs.google.com/presentation/d/160eq-O48m0FuJgghCHZ4Idysb9zokbMF6Qd1E3HJJww/edit?usp=sharing)). Initial results are promising! But this model needs to be improved, validated, and applied. 
 
 ![fig](imgs/pred_map.png)
 
@@ -72,10 +72,10 @@ $ conda install mamba -n base -c conda-forge
 ```
 Clone the repo and set up the environment
 ```
-$ git clone https://github.com/geo-smart/crunchy-snow.git
-$ cd ./crunchy-snow
+$ git clone https://github.com/geo-smart/deep-snow.git
+$ cd ./deep-snow
 $ mamba env create -f environment.yml
-$ conda activate crunchy-snow
+$ conda activate deep-snow
 ```
 Install the package locally
 ```

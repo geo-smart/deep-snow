@@ -4,7 +4,7 @@ import xarray as xr
 import numpy as np
 import os
 import pandas as pd
-from crunchy_snow.utils import calc_dowy, calc_norm, undo_norm, db_scale
+from deep_snow.utils import calc_dowy, calc_norm, undo_norm, db_scale
 
 # these are set by finding the min and max across the entire dataset
 norm_dict = {'aso_sd':[0, 25],

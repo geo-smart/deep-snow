@@ -25,9 +25,9 @@ import seaborn as sns
 import torch.nn.functional as F
 import math
 
-from crunchy_snow.utils import calc_norm, undo_norm, db_scale, calc_dowy
-from crunchy_snow.dataset import norm_dict
-import crunchy_snow.models
+from deep_snow.utils import calc_norm, undo_norm, db_scale, calc_dowy
+from deep_snow.dataset import norm_dict
+import deep_snow.models
 
 def parse_bounding_box(value):
     try:
@@ -340,7 +340,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs):
 
     #load previous model
     print('loading model')
-    model = crunchy_snow.models.ResDepth(n_input_channels=len(input_channels))
+    model = deep_snow.models.ResDepth(n_input_channels=len(input_channels))
     model.load_state_dict(torch.load(model_path))
     model.to('cuda')
 
@@ -372,7 +372,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs):
     # recover original dimensions
     pred_sd = pred_pad[0:(len(ds.y)), 0:(len(ds.x))]
     # undo normalization
-    pred_sd = undo_norm(pred_sd, crunchy_snow.dataset.norm_dict['aso_sd'])
+    pred_sd = undo_norm(pred_sd, deep_snow.dataset.norm_dict['aso_sd'])
     # add to xarray dataset
     ds['predicted_sd'] = (('y', 'x'), pred_sd.to('cpu').numpy())
     # mask areas with missing data
@@ -390,7 +390,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs):
     
     return ds
 
-def predict_sd(aoi, target_date, snowoff_date, model_path, out_dir, out_name='crunchy-snow_sd.tif', write_tif=True, delete_inputs=False, cloud_cover=25):
+def predict_sd(aoi, target_date, snowoff_date, model_path, out_dir, out_name='deep-snow_sd.tif', write_tif=True, delete_inputs=False, cloud_cover=25):
     # download data
     crs = download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover,)
     # apply model
@@ -409,13 +409,13 @@ def generate_dates(target_date_str, start_date_str):
 
     return date_list
 
-def predict_sd_ts(aoi, target_date, snowoff_date, model_path, out_dir, out_name='crunchy-snow_sd.tif', delete_inputs=False, cloud_cover=25):
+def predict_sd_ts(aoi, target_date, snowoff_date, model_path, out_dir, out_name='deep-snow_sd.tif', delete_inputs=False, cloud_cover=25):
     ds_list = []
     date_list = generate_dates(target_date, snowoff_date)
     for i, date in enumerate(date_list):
         print('--------------------------------------')
         print(f'working on {date}, {i+1}/{len(date_list)}')
-        ds = predict_sd(aoi, date, snowoff_date, model_path, out_dir, out_name='crunchy-snow_sd.tif', write_tif=False, delete_inputs=True, cloud_cover=25)
+        ds = predict_sd(aoi, date, snowoff_date, model_path, out_dir, out_name='deep-snow_sd.tif', write_tif=False, delete_inputs=True, cloud_cover=25)
         ds = ds.expand_dims(time=[pd.to_datetime(date, format="%Y%m%d")])
         if i > 0:
             ds = ds.rio.reproject_match(ds_list[0])
@@ -435,7 +435,7 @@ def main():
     # make sure out_dir exists or create it
     Path(args.out_dir).mkdir(exist_ok = True)
     # download data
-    ds = crunchy_snow(args.aoi, args.target_date, args.snowoff_date, args.model_path, args.out_dir, args.delete_inputs, args.cloud_cover)
+    ds = deep_snow(args.aoi, args.target_date, args.snowoff_date, args.model_path, args.out_dir, args.delete_inputs, args.cloud_cover)
 
 if __name__ == "__main__":
    main()

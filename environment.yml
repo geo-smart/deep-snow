@@ -1,4 +1,4 @@
-name: crunchy-snow
+name: deep-snow
 channels:
   - pytorch 
   - conda-forge

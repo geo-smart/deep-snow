@@ -4,6 +4,8 @@ import xarray as xr
 import numpy as np
 import os
 import pandas as pd
+import torchvision.transforms.functional 
+import random
 from deep_snow.utils import calc_dowy, calc_norm, undo_norm, db_scale
 
 # these are set by finding the min and max across the entire dataset
@@ -35,16 +37,30 @@ norm_dict = {'aso_sd':[0, 25],
              'latitude':[-90, 90],
              'longitude':[-180, 180]}
 
+def random_transform(image, randoms):
+    # Random horizontal flip
+    if randoms[0] > 0.5:
+        image = torchvision.transforms.functional.hflip(image)
+    # Random vertical flip
+    if randoms[1] > 0.5:
+        image = torchvision.transforms.functional.vflip(image)
+    # Random rotation
+    angles = [0, 90, 180, 270]
+    angle = angles[randoms[2]]
+    image = torchvision.transforms.functional.rotate(image, angle)
+    return image
+
 # define dataset 
 class Dataset(torch.utils.data.Dataset):
     '''
     class that reads data from a netCDF and returns normalized tensors 
     '''
-    def __init__(self, path_list, selected_channels, norm_dict=norm_dict, norm=True):
+    def __init__(self, path_list, selected_channels, norm_dict=norm_dict, norm=True, augment=True):
         self.path_list = path_list
         self.selected_channels = selected_channels
         self.norm_dict = norm_dict
         self.norm = norm
+        self.augment = augment
         
     #dataset length
     def __len__(self):
@@ -195,6 +211,11 @@ class Dataset(torch.utils.data.Dataset):
 
         # Select only the specified channels
         selected_data = [data_dict[channel] for channel in self.selected_channels]
+
+        # Apply transformations to each selected channel
+        if self.augment:
+            randoms = [random.random(), random.random(), random.randint(0, 3)]
+            selected_data = [random_transform(img, randoms) for img in selected_data]
         
         return tuple(selected_data)
 

@@ -308,7 +308,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs):
     data_dict['elevation'] = calc_norm(torch.Tensor(ds['elevation'].values), norm_dict['elevation'])
     data_dict['latitude'] = calc_norm(torch.Tensor(ds['latitude'].values), norm_dict['latitude'])
     data_dict['longitude'] = calc_norm(torch.Tensor(ds['longitude'].values), norm_dict['longitude'])
-    # data_dict['dowy'] = calc_norm(torch.Tensor(dowy, [0, 365])
+    data_dict['dowy'] = calc_norm(torch.Tensor(dowy, [0, 365])
     data_dict['ndvi'] = calc_norm(torch.Tensor(ds['ndvi'].values), [-1, 1])
     data_dict['ndsi'] = calc_norm(torch.Tensor(ds['ndsi'].values), [-1, 1])
     data_dict['ndwi'] = calc_norm(torch.Tensor(ds['ndwi'].values), [-1, 1])
@@ -321,22 +321,17 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs):
     # clamp values, add dimensions
     data_dict = {key: torch.clamp(data_dict[key], 0, 1)[None, None, :, :] for key in data_dict.keys()}
 
-    # define input channels for model
+   # define input channels for model
     input_channels = [
         'snowon_vv',
-        'snowon_vh',
-        'snowoff_vv',
-        'snowoff_vh',
-        'blue',
+        'delta_cr',
         'green',
-        'red',
-        'fcf',
-        'elevation',
-        'ndvi',
+        'swir2',
         'ndsi',
         'ndwi',
-        'snowon_cr',
-        'snowoff_cr']
+        'elevation',
+        'latitude',
+        'longitude']
 
     #load previous model
     print('loading model')

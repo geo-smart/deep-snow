@@ -6,7 +6,7 @@ Seasonal snow provides drinking water for billions, but current global measureme
 
 During the 2023 GeoSMART Hackweek and the 2024 NASA Earth Sciences and UW Hackweek, the deep-snow teams trained convolutional neural networks to predict snow depth. A manuscript describing this work is in preparation. This repo contains code related to that effort as well as tools to predict snow depth from remote sensing imagery using our trained machine learning models. 
 
-<img src="imgs/tuolumne_test_v0.png" width="500">
+<img src="imgs/tuolumne_test_v0_lowres.png" width="500">
 
 ### Installation
 1) Download and install Miniconda 

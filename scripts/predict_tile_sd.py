@@ -30,7 +30,7 @@ def main():
     for attempt in range(max_retries):
         try:
             crs = download_data(aoi=args.aoi, target_date=args.target_date, snowoff_date=args.snow_off_date, out_dir=out_dir, cloud_cover=float(args.cloud_cover))
-            ds = apply_model(out_dir=out_dir, out_name=out_name, crs=crs, write_tif=True, model_path=model_path, delete_inputs=True, out_crs='wgs84')
+            ds = apply_model(out_dir=out_dir, out_name=out_name, crs=crs, write_tif=True, model_path=model_path, delete_inputs=True, out_crs='wgs84', gpu=False)
             break  # Exit the loop if successful
         except Exception as e:
             print(f"Attempt {attempt + 1} failed: {e}")

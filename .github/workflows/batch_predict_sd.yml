@@ -1,5 +1,5 @@
-# Batch process many image pairs
-name: predict_sd
+# Batch predict snow depth over many tiles
+name: batch_predict_sd
 run-name: predict sd ${{ inputs.target_date }}
 
 on:
@@ -24,7 +24,7 @@ on:
             type: string
             required: true
             description: percent cloud cover allowed in images (0-100)
-            default: '10'
+            default: '100'
 jobs:
   # The output of this job is a JSON mapping for a matrix job
   prep_tiles:

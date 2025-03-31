@@ -397,9 +397,11 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
     #load previous model
     print('loading model')
     model = deep_snow.models.ResDepth(n_input_channels=len(input_channels), depth=5)
-    model.load_state_dict(torch.load(model_path))
     if gpu == True:
+        model.load_state_dict(torch.load(model_path))
         model.to('cuda')
+    else:
+        model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
     tile_size = 1024
     padding = 50

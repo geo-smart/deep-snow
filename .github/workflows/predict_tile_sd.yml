@@ -58,6 +58,10 @@ jobs:
                 cache-environment: true
                 environment-file: environment.yml
 
+            - name: Install deep-snow
+              run: |
+                pip install .
+
             - name: Download Data and Predict Snow Depth
               run: |
                 python scripts/predict_tile_sd.py ${{ inputs.target_date }} ${{ inputs.snow_off_date }} ${{ inputs.aoi }} ${{ inputs.cloud_cover }}

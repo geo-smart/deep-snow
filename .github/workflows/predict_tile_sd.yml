@@ -71,4 +71,4 @@ jobs:
               with:
                 name: ${{ inputs.workflow_name }}
                 path: |
-                    data/*deep_snow_sd.tif
+                    data/*_sd.tif

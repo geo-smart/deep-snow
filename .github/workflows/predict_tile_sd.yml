@@ -1,4 +1,4 @@
-# Batch process many image pairs
+# predict snow depth for a single tile
 name: predict_tile_sd
 run-name: ${{ inputs.workflow_name }}
 
@@ -24,7 +24,7 @@ on:
             type: string
             required: true
             description: percent cloud cover allowed in images (0-100)
-            default: '10'
+            default: '100'
     
     workflow_call:
         inputs:

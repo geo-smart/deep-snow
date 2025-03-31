@@ -12,9 +12,9 @@ def parse_bounding_box(value):
 def get_parser():
     parser = argparse.ArgumentParser(description="CNN predictions of snow depth from remote sensing data")
     parser.add_argument("target_date", type=str, help="target date for snow depths with format YYYYmmdd")
-    parser.add_argument("snow_off_date", type=str, help="snow off date (perhaps previous late summer) with format YYYYmmdd")
+    parser.add_argument("snow_off_date", type=str, help="snow-off date (perhaps previous late summer) with format YYYYmmdd")
     parser.add_argument("aoi", type=parse_bounding_box, help="area of interest in format 'minlon minlat maxlon maxlat'")
-    parser.add_argument("cloud_cover", type=float, help="percent cloud cover allowed in Sentinel-2 images (0-100)")
+    parser.add_argument("cloud_cover", type=str, help="percent cloud cover allowed in Sentinel-2 images (0-100)")
     return parser
 
 def main():
@@ -29,7 +29,7 @@ def main():
     retry_delay = 5  # seconds
     for attempt in range(max_retries):
         try:
-            crs = download_data(aoi=args.aoi, target_date=args.target_date, snowoff_date=args.snow_off_date, out_dir=out_dir, cloud_cover=args.cloud_cover)
+            crs = download_data(aoi=args.aoi, target_date=args.target_date, snowoff_date=args.snow_off_date, out_dir=out_dir, cloud_cover=float(args.cloud_cover))
             ds = apply_model(out_dir=out_dir, out_name=out_name, crs=crs, write_tif=True, model_path=model_path, delete_inputs=True, out_crs='wgs84')
             break  # Exit the loop if successful
         except Exception as e:

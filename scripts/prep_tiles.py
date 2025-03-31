@@ -83,7 +83,7 @@ def main():
     for i, tile in tiles_gdf.iterrows():
         minlon, minlat, maxlon, maxlat = tile.geometry.bounds
         shortname = f'{args.target_date}_{minlon:.{2}f}_{minlat:.{2}f}_{maxlon:.{2}f}_{maxlat:.{2}f}'
-        tiles.append({'tile_date':args.target_date, 'minlon':minlon, 'minlat':minlat, 'maxlon':maxlon, 'maxlat':maxlat, 'name':shortname})
+        tiles.append({'tile_date':args.target_date, 'aoi':f'{minlon} {minlat} {maxlon} {maxlat}', 'name':shortname})
     matrixJSON = f'{{"include":{json.dumps(tiles)}}}'
     print(f'number of tiles: {len(tiles)}')
     with open(os.environ['GITHUB_OUTPUT'], 'a') as f:

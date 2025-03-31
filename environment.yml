@@ -16,4 +16,5 @@ dependencies:
   - odc-stac
   - tqdm
   - dask<2025.3.0 # temporarily exclude latest dask version https://github.com/opendatacube/odc-stac/issues/199
+  - xdem
   

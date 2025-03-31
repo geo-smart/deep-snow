@@ -398,7 +398,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
     print('loading model')
     model = deep_snow.models.ResDepth(n_input_channels=len(input_channels), depth=5)
     model.load_state_dict(torch.load(model_path))
-    if gpu = True:
+    if gpu == True:
         model.to('cuda')
 
     tile_size = 1024
@@ -422,7 +422,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
 
             # predict noise in tile
             with torch.no_grad():
-                if gpu=True:
+                if gpu == True:
                     tile_pred_sd = model(inputs_pad[:, :, ymin:ymax, xmin:xmax].to('cuda'))
                 else:
                     tile_pred_sd = model(inputs_pad[:, :, ymin:ymax, xmin:xmax])
@@ -449,7 +449,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
     # undo normalization
     pred_sd = undo_norm(pred_sd, deep_snow.dataset.norm_dict['aso_sd'])
     # add to xarray dataset
-    if gpu=True:
+    if gpu == True:
         ds['predicted_sd'] = (('y', 'x'), pred_sd.to('cpu').numpy())
     else:
         ds['predicted_sd'] = (('y', 'x'), pred_sd.numpy())

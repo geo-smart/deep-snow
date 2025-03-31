@@ -1,0 +1,64 @@
+# Batch predict snow depth over many tiles
+name: batch_predict_sd
+run-name: predict sd ${{ inputs.target_date }}
+
+on:
+  workflow_dispatch:
+    inputs:
+        target_date:
+            type: string
+            required: true
+            description: target date for snow depths with format yyyymmdd
+            default: '20220101'
+        snow_off_date:
+            type: string
+            required: true
+            description: snow-off date (perhaps previous late summer) with format YYYYmmdd
+            default: '20210901'
+        aoi:
+            type: string
+            required: true
+            description: area of interest in format 'minlon minlat maxlon maxlat'
+            default: '-108.20 37.55 -107.61 38.09'
+        cloud_cover:
+            type: string
+            required: true
+            description: percent cloud cover allowed in images (0-100)
+            default: '100'
+jobs:
+  # The output of this job is a JSON mapping for a matrix job
+  prep_tiles:
+    runs-on: ubuntu-latest
+    outputs:
+      MATRIX: ${{ steps.prep_tiles.outputs.MATRIX_PARAMS_COMBINATIONS }}
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Conda environment with Micromamba
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          cache-environment: true
+          environment-file: environment.yml
+
+      - name: Prepare tiles over area of interest
+        id: prep_tiles
+        run: | 
+          python scripts/prep_tiles.py ${{ inputs.target_date }} ${{ inputs.aoi }}
+  # A matrix job that calls a reuseable workflow
+  predict_tile_sd:
+    needs: prep_tiles
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prep_tiles.outputs.MATRIX) }}
+    name: ${{ matrix.name }}
+    uses: ./.github/workflows/predict_tile_sd.yml
+    with:
+      target_date: ${{ inputs.target_date }}
+      snow_off_date: ${{ inputs.snow_off_date }} 
+      aoi: ${{ matrix.aoi }}
+      cloud_cover: ${{ inputs.cloud_cover }}
+      workflow_name: ${{ matrix.name }}

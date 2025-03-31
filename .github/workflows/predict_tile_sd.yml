@@ -1,0 +1,70 @@
+# predict snow depth for a single tile
+name: predict_tile_sd
+run-name: ${{ inputs.workflow_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+        target_date:
+            type: string
+            required: true
+            description: target date for snow depths with format yyyymmdd
+            default: '20220101'
+        snow_off_date:
+            type: string
+            required: true
+            description: snow-off date (perhaps previous late summer) with format YYYYmmdd
+            default: '20210901'
+        aoi:
+            type: string
+            required: true
+            description: area of interest in format 'minlon minlat maxlon maxlat'
+            default: '-108.20 37.55 -107.61 38.09'
+        cloud_cover:
+            type: string
+            required: true
+            description: percent cloud cover allowed in images (0-100)
+            default: '100'
+    
+    workflow_call:
+        inputs:
+          target_date:
+              type: string
+              description: target date for snow depths with format yyyymmdd
+          snow_off_date:
+              type: string
+              description: snow-off date (perhaps previous late summer) with format YYYYmmdd
+          aoi:
+              type: string
+              description: area of interest in format 'minlon minlat maxlon maxlat'
+          cloud_cover:
+              type: string
+              description: percent cloud cover allowed in images (0-100)
+jobs:
+    predict_tile_sd:
+        name: ${{ inputs.workflow_name }}
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                shell: bash -el {0}
+
+        steps:
+            - name: Checkout Repository
+              uses: actions/checkout@v4
+
+            - name: Install Conda environment with Micromamba
+              uses: mamba-org/setup-micromamba@v1
+              with:
+                cache-environment: true
+                environment-file: environment.yml
+
+            - name: Download Data and Predict Snow Depth
+              run: |
+                python scripts/predict_tile_sd.py ${{ inputs.target_date }} ${{ inputs.snow_off_date }} ${{ inputs.aoi }} ${{ inputs.cloud_cover }}
+
+            - name: Upload Snow Depth Map as Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                name: ${{ inputs.workflow_name }}
+                path: |
+                    data/*deep_snow_sd.tif

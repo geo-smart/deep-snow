@@ -482,7 +482,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
     return ds
 
 def calculate_uncertainty(ds):
-    bias_path = '../data/deep-snow_data/bias_interpolator.pkl'
+    bias_path = 'data/deep-snow_data/bias_interpolator.pkl'
     
     # Load the bias interpolator
     with open(bias_path, 'rb') as f:

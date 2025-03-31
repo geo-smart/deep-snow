@@ -24,6 +24,9 @@ from glob import glob
 import seaborn as sns
 import torch.nn.functional as F
 import math
+import pickle
+import xdem
+import time
 
 from deep_snow.utils import calc_norm, undo_norm, db_scale, calc_dowy
 from deep_snow.dataset import norm_dict
@@ -46,6 +49,7 @@ def get_parser():
     parser.add_argument("out_dir", type=str, help="directory to write inputs and outputs to")
     parser.add_argument("model_path", type=str, help="path to model weights to use")
     parser.add_argument("out_name", type=str, help="name for predicted snow depth geotif")
+    parser.add_argument("out_crs", type=str, help="coordinate reference system for predicted snow depths: 'utm' or 'wgs84'")
     
     return parser
 
@@ -127,20 +131,32 @@ def download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover):
     aoi_gpd = gpd.GeoDataFrame({'geometry':[shape(aoi)]}).set_crs(crs="EPSG:4326")
     crs = aoi_gpd.estimate_utm_crs()
 
-    snowon_date_range = date_range(target_date, 6)
-    snowoff_date_range = date_range(snowoff_date, 6)
+    snowon_date_range = date_range(target_date, 8)
+    snowoff_date_range = date_range(snowoff_date, 8)
 
     stac = pystac_client.Client.open(
     "https://planetarycomputer.microsoft.com/api/stac/v1",
     modifier=planetary_computer.sign_inplace)
 
+    max_retries = 100
+    retry_delay = 5  # seconds
+
     # Search for snow-on Sentinel-1 data
     print('searching for Sentinel-1 snow-on data')
-    search = stac.search(
-        intersects=aoi,
-        datetime=snowon_date_range,
-        collections=["sentinel-1-rtc"])
-    items = search.item_collection()
+    for attempt in range(max_retries):
+        try:
+            search = stac.search(
+                intersects=aoi,
+                datetime=snowon_date_range,
+                collections=["sentinel-1-rtc"])
+            items = search.item_collection()
+            break  # Exit the loop if successful
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)  # Wait before retrying
+            else:
+                raise  # Raise the last exception if max retries reached
     
     snowon_s1_ds = odc.stac.load(items,chunks={"x": 2048, "y": 2048},
                                  crs=crs,
@@ -158,11 +174,20 @@ def download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover):
 
     # Search for snow-off Sentinel-1 data
     print('searching for Sentinel-1 snow-off data')
-    search = stac.search(
-        intersects=aoi,
-        datetime=snowoff_date_range,
-        collections=["sentinel-1-rtc"])
-    items = search.item_collection()
+    for attempt in range(max_retries):
+        try:
+            search = stac.search(
+                intersects=aoi,
+                datetime=snowoff_date_range,
+                collections=["sentinel-1-rtc"])
+            items = search.item_collection()
+            break  # Exit the loop if successful
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)  # Wait before retrying
+            else:
+                raise  # Raise the last exception if max retries reached
     
     snowoff_s1_ds = odc.stac.load(items,chunks={"x": 2048, "y": 2048},
                                   like=snowon_s1_ds,
@@ -177,27 +202,51 @@ def download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover):
 
     # search for Sentinel-2 data
     print('searching for Sentinel-2 snow-on data')
-    search = stac.search(
-    intersects=aoi,
-    datetime=snowon_date_range,
-    collections=["sentinel-2-l2a"],
-    query={"eo:cloud_cover": {"lt": cloud_cover}})
-    items = search.item_collection()
+    for attempt in range(max_retries):
+        try:
+            search = stac.search(
+                intersects=aoi,
+                datetime=snowon_date_range,
+                collections=["sentinel-2-l2a"],
+                query={"eo:cloud_cover": {"lt": cloud_cover}})
+            items = search.item_collection()
+            break  # Exit the loop if successful
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)  # Wait before retrying
+            else:
+                raise  # Raise the last exception if max retries reached
     
     s2_ds = odc.stac.load(items,chunks={"x": 2048, "y": 2048},
                           like=snowon_s1_ds,
                           groupby='solar_day').where(lambda x: x > 0, other=np.nan)
     print(f"Returned {len(s2_ds.time)} acquisitions")
+
+    # remove clouds
+    s2_ds = s2_ds.where(s2_ds['SCL'] != 9) # high probability cloud cover
+    s2_ds = s2_ds.where(s2_ds['SCL'] != 8) # high probability cloud cover
+    s2_ds = s2_ds.where(s2_ds['SCL'] != 0) # nodata
     
     # compute median
     s2_ds = s2_ds.median(dim='time').squeeze().compute()
 
-    # Search for COP30 elevation date
+    # search for COP30 DEM 
     print('searching for COP30 dem data')
-    search = stac.search(
-    collections=["cop-dem-glo-30"],
-    intersects=aoi)
-    items = search.item_collection()
+    for attempt in range(max_retries):
+        try:
+            search = stac.search(
+                collections=["cop-dem-glo-30"],
+                intersects=aoi
+            )
+            items = search.item_collection()
+            break  # Exit the loop if successful
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)  # Wait before retrying
+            else:
+                raise  # Raise the last exception if max retries reached
         
     data = []
     for item in items:
@@ -209,27 +258,26 @@ def download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover):
     # reproject to match radar dataset
     cop30_ds = cop30_ds.rio.reproject_match(snowon_s1_ds, resampling=rio.enums.Resampling.bilinear).compute()
 
-    # download fractional forest cover data
-    print('downloading fractional forest cover data')
-    fcf_path ='/tmp/fcf_global.tif'
-    download_fcf(fcf_path)
+    # # download fractional forest cover data
+    # print('downloading fractional forest cover data')
+    # fcf_path ='/tmp/fcf_global.tif'
+    # download_fcf(fcf_path)
     
-    # open as dataArray and return
-    fcf_ds = rxr.open_rasterio(fcf_path)
+    # # open as dataArray and return
+    # fcf_ds = rxr.open_rasterio(fcf_path)
     
-    # clip to aoi
-    ## MAKE LARGER BBOX TO AVOID EDGE PROBLEMS
-    fcf_ds = fcf_ds.rio.clip_box(*aoi_gpd.total_bounds,crs="EPSG:4326") 
-    # promote to dataset
-    fcf_ds = fcf_ds.rename('fcf').squeeze().to_dataset()
-    # reproject to match radar dataset
-    fcf_ds = fcf_ds.rio.reproject_match(snowon_s1_ds, resampling=rio.enums.Resampling.bilinear)
-    # set values above 100 to nodata
-    fcf_ds['fcf'] = fcf_ds['fcf'].where(fcf_ds['fcf'] <= 100, np.nan)/100
+    # # clip to aoi
+    # fcf_ds = fcf_ds.rio.clip_box(*aoi_gpd.total_bounds,crs="EPSG:4326") 
+    # # promote to dataset
+    # fcf_ds = fcf_ds.rename('fcf').squeeze().to_dataset()
+    # # reproject to match radar dataset
+    # fcf_ds = fcf_ds.rio.reproject_match(snowon_s1_ds, resampling=rio.enums.Resampling.bilinear)
+    # # set values above 100 to nodata
+    # fcf_ds['fcf'] = fcf_ds['fcf'].where(fcf_ds['fcf'] <= 100, np.nan)/100
 
     # combine datasets
     print('combining datasets')
-    ds_list = [snowon_s1_ds, snowoff_s1_ds, s2_ds, cop30_ds, fcf_ds]
+    ds_list = [snowon_s1_ds, snowoff_s1_ds, s2_ds, cop30_ds] # with fcf: [snowon_s1_ds, snowoff_s1_ds, s2_ds, cop30_ds, fcf_ds]
     ds = xr.merge(ds_list, compat='override', join='override').squeeze()
 
     # radar data variables
@@ -251,7 +299,7 @@ def download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover):
 
     # latitude, longitude
     # define projections
-    utm_proj = Proj(proj='utm', zone=crs.name[-3:-1], ellps='WGS84') ## NOTE hardcoded utm for now, adjust before use
+    utm_proj = Proj(proj='utm', zone=crs.name[-3:-1], ellps='WGS84') 
     wgs84_proj = Proj(proj='latlong', datum='WGS84')
     
     x, y = np.meshgrid(ds['x'].values, ds['y'].values)
@@ -263,13 +311,22 @@ def download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover):
     dowy_1d = calc_dowy(pd.to_datetime(target_date).dayofyear)
     ds['dowy'] = (('y', 'x'), np.full_like(ds['latitude'], dowy_1d))
 
+    # add terrain variables
+    dem_transform = (50, 0.0, ds.isel(x=0, y=0).x.item(), 0.0, 50, ds.isel(x=0, y=0).y.item())
+    dem = xdem.DEM.from_array(ds.elevation.values, dem_transform, crs=ds.rio.crs)
+    ds['aspect'] = (('y', 'x'), xdem.terrain.aspect(dem).data.data)
+    ds['slope'] = (('y', 'x'), xdem.terrain.slope(dem).data.data)
+    ds['curvature'] = (('y', 'x'), xdem.terrain.curvature(dem).data.data)
+    ds['tpi'] = (('y', 'x'), xdem.terrain.topographic_position_index(dem).data.data)
+    ds['tri'] = (('y', 'x'), xdem.terrain.terrain_ruggedness_index(dem).data.data)
+
     # make gap map
     ds['data_gaps'] = np.multiply(((np.isnan(ds.snowon_vv) +
                                     np.isnan(ds.snowon_vh) +
                                     np.isnan(ds.snowoff_vv) +
                                     np.isnan(ds.snowoff_vh)) > 0), 1)
     ## NOTE we're taking the median of all bands, need to fix before using scene class map
-    # ds['data_gaps'] = xr.where(ds['SCL'] == 9, 1, ds['data_gaps']) # high probability cloud cover
+    ds['data_gaps'] = xr.where(ds['SCL'] == 9, 1, ds['data_gaps']) # high probability cloud cover
     ds['data_gaps'] = xr.where(ds['SCL'] == 0, 1, ds['data_gaps']) # nodata
 
     data_fn = f'{out_dir}/model_inputs.nc'
@@ -279,7 +336,7 @@ def download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover):
 
     return crs
 
-def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs):
+def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, out_crs):
     data_fn = f'{out_dir}/model_inputs.nc'
     print('reading input data')
     ds = xr.open_dataset(data_fn)
@@ -306,22 +363,26 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs):
     data_dict['scene_class_map'] = calc_norm(torch.Tensor(ds['SCL'].values), norm_dict['scene_class_map'])
     data_dict['water_vapor_product'] = calc_norm(torch.Tensor(ds['WVP'].values), norm_dict['water_vapor_product'])
     data_dict['elevation'] = calc_norm(torch.Tensor(ds['elevation'].values), norm_dict['elevation'])
+    data_dict['aspect'] = calc_norm(torch.Tensor(ds['aspect'].values), norm_dict['aspect'])
+    data_dict['slope'] = calc_norm(torch.Tensor(ds['slope'].values), norm_dict['slope'])
+    data_dict['curvature'] = calc_norm(torch.Tensor(ds['curvature'].values), norm_dict['curvature'])
+    data_dict['tpi'] = calc_norm(torch.Tensor(ds['tpi'].values), norm_dict['tpi'])
+    data_dict['tri'] = calc_norm(torch.Tensor(ds['tri'].values), norm_dict['tri'])
     data_dict['latitude'] = calc_norm(torch.Tensor(ds['latitude'].values), norm_dict['latitude'])
     data_dict['longitude'] = calc_norm(torch.Tensor(ds['longitude'].values), norm_dict['longitude'])
-    data_dict['dowy'] = calc_norm(torch.Tensor(dowy, [0, 365])
+    data_dict['dowy'] = calc_norm(torch.Tensor(ds['dowy'].values), [0, 365])
     data_dict['ndvi'] = calc_norm(torch.Tensor(ds['ndvi'].values), [-1, 1])
     data_dict['ndsi'] = calc_norm(torch.Tensor(ds['ndsi'].values), [-1, 1])
     data_dict['ndwi'] = calc_norm(torch.Tensor(ds['ndwi'].values), [-1, 1])
     data_dict['snowon_cr'] = calc_norm(torch.Tensor(ds['snowon_cr'].values), norm_dict['cr'])
     data_dict['snowoff_cr'] = calc_norm(torch.Tensor(ds['snowoff_cr'].values), norm_dict['cr'])
     data_dict['delta_cr'] = calc_norm(torch.Tensor(ds['delta_cr'].values), norm_dict['delta_cr'])
-    
-    data_dict['fcf'] = torch.Tensor(ds['fcf'].values)
+    #data_dict['fcf'] = torch.Tensor(ds['fcf'].values)
 
     # clamp values, add dimensions
     data_dict = {key: torch.clamp(data_dict[key], 0, 1)[None, None, :, :] for key in data_dict.keys()}
 
-   # define input channels for model
+    # define input channels for model
     input_channels = [
         'snowon_vv',
         'delta_cr',
@@ -335,11 +396,12 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs):
 
     #load previous model
     print('loading model')
-    model = deep_snow.models.ResDepth(n_input_channels=len(input_channels))
+    model = deep_snow.models.ResDepth(n_input_channels=len(input_channels), depth=5)
     model.load_state_dict(torch.load(model_path))
     model.to('cuda')
 
     tile_size = 1024
+    padding = 50
 
     xmin=0
     xmax=tile_size
@@ -350,19 +412,34 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs):
     inputs_pad = F.pad(inputs, (0, tile_size, 0, tile_size), 'constant', 0)
     pred_pad = torch.empty_like(inputs_pad[0, 0, :, :])
     
-    for i in range(math.ceil((len(ds.x)/tile_size))):
-        #print(f'column {i}')
-        for j in range(math.ceil((len(ds.y)/tile_size))):
-            #print(f'row {j}')
-            ymin = j*tile_size
-            ymax = (j+1)*tile_size
-            xmin = i*tile_size
-            xmax = (i+1)*tile_size
-            
+    for i in range(math.ceil((len(ds.x)/(tile_size-2*padding)))):
+        for j in range(math.ceil((len(ds.y)/(tile_size-2*padding)))):
+            ymin = j*(tile_size-2*padding)
+            ymax = ymin + tile_size
+            xmin = i*(tile_size-2*padding)
+            xmax = xmin + tile_size
+
             # predict noise in tile
             with torch.no_grad():
                 tile_pred_sd = model(inputs_pad[:, :, ymin:ymax, xmin:xmax].to('cuda'))
-            pred_pad[ymin:ymax, xmin:xmax] = tile_pred_sd.detach().squeeze()
+            
+            xmax = xmax - padding
+            ymax = ymax - padding
+            
+            if ymin == 0 and xmin == 0:
+                tile_pred_sd = tile_pred_sd.detach().squeeze()[:-padding, :-padding]
+            elif ymin == 0:
+                xmin = xmin + padding
+                tile_pred_sd = tile_pred_sd.detach().squeeze()[:-padding, padding:-padding]
+            elif xmin == 0: 
+                ymin = ymin + padding
+                tile_pred_sd = tile_pred_sd.detach().squeeze()[padding:-padding, :-padding]
+            else:
+                xmin = xmin + padding
+                ymin = ymin + padding
+                tile_pred_sd = tile_pred_sd.detach().squeeze()[padding:-padding, padding:-padding]
+            
+            pred_pad[ymin:ymax, xmin:xmax] = tile_pred_sd
     
     # recover original dimensions
     pred_sd = pred_pad[0:(len(ds.y)), 0:(len(ds.x))]
@@ -370,13 +447,24 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs):
     pred_sd = undo_norm(pred_sd, deep_snow.dataset.norm_dict['aso_sd'])
     # add to xarray dataset
     ds['predicted_sd'] = (('y', 'x'), pred_sd.to('cpu').numpy())
-    # mask areas with missing data
-    # ds['predicted_sd'] = ds['predicted_sd'].where(ds['data_gaps'] == 0)
+   
+    # set negatives to 0
+    ds['predicted_sd'] = ds['predicted_sd'].where(ds['predicted_sd'] > 0, 0)
 
+    ds = calculate_uncertainty(ds)
+    # mask areas with missing data
+    #ds['predicted_sd_corrected'] = ds['predicted_sd_corrected'].where(ds['data_gaps'] == 0)
     ds = ds.rio.write_crs(crs)
+
+    if out_crs == 'wgs84':
+        crs = 'EPSG:4326'
+        ds = ds.rio.reproject(crs)
+        ds = ds.rio.write_crs(crs)
+    
     if write_tif == True:
         # write out geotif
-        ds.predicted_sd.rio.to_raster(f'{out_dir}/{out_name}')
+        ds.predicted_sd_corrected.rio.to_raster(f'{out_dir}/{out_name}_sd.tif', compress='lzw')
+        #ds.precision_map.rio.to_raster(f'{out_dir}/{out_name}_precision.tif', compress='lzw')
 
     if delete_inputs == True:
         os.remove(data_fn)
@@ -385,11 +473,72 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs):
     
     return ds
 
-def predict_sd(aoi, target_date, snowoff_date, model_path, out_dir, out_name='deep-snow_sd.tif', write_tif=True, delete_inputs=False, cloud_cover=25):
+def calculate_uncertainty(ds):
+    dirname = os.path.dirname(__file__)
+    
+    # Load the bias interpolator
+    with open(f'{dirname}/data/bias_interpolator.pkl', 'rb') as f:
+        predicted_interpolator = pickle.load(f)
+    
+    # # Load the interpolated NMAD array
+    # interpolated_nmad = np.load(f'{dirname}/data/interpolated_nmad.npy')
+    
+    # # Load the bin edges
+    # with open(f'{dirname}/data/bin_edges.pkl', 'rb') as f:
+    #     bins = pickle.load(f)
+    
+    # predicted_sd_bins = bins['predicted_sd_bins']
+    # elevation_bins = bins['elevation_bins']
+    # slope_bins = bins['slope_bins']
+    # fcf_bins = bins['fcf_bins']
+
+    # apply bias correction
+    # Flatten the predicted_sd values to 1D
+    predicted_sd_flat = ds['predicted_sd'].values.flatten()
+    # Predict the bias for the 1D array
+    predicted_bias_flat = predicted_interpolator(predicted_sd_flat)
+    # Reshape the predicted bias back to the original shape
+    predicted_bias_reshaped = predicted_bias_flat.reshape(ds['predicted_sd'].shape)
+    # Add the bias-corrected prediction to the dataset
+    ds['bias_predicted'] = (('y', 'x'), predicted_bias_reshaped)
+    ds['predicted_sd_corrected'] = ds['predicted_sd'] + ds['bias_predicted']
+
+    # def bin_data(data, bins):
+    #     binned_data = np.digitize(data, bins) - 1
+    #     # Handle NaN values separately
+    #     binned_data = np.where(binned_data > 9, np.nan, binned_data)
+    #     return binned_data
+
+    # # Apply the binning function
+    # ds['predicted_sd_corrected_bins'] = xr.apply_ufunc(bin_data, ds['predicted_sd_corrected'], kwargs={'bins': predicted_sd_bins}, dask='allowed')
+    # ds['elevation_bins'] = xr.apply_ufunc(bin_data, ds['elevation'], kwargs={'bins': elevation_bins}, dask='allowed')
+    # ds['slope_bins'] = xr.apply_ufunc(bin_data, ds['slope'], kwargs={'bins': slope_bins}, dask='allowed')
+    # ds['fcf_bins'] = xr.apply_ufunc(bin_data, ds['fcf'], kwargs={'bins': fcf_bins}, dask='allowed')
+
+    # def map_nmad(psd_bins, elev_bins, slope_bins, fcf_bins, nmad_array):
+    #     valid = ~np.isnan(psd_bins) & ~np.isnan(elev_bins) & ~np.isnan(slope_bins) & ~np.isnan(fcf_bins)
+    #     result = np.full(psd_bins.shape, np.nan)
+    #     result[valid] = nmad_array[psd_bins[valid].astype(int), elev_bins[valid].astype(int), slope_bins[valid].astype(int), fcf_bins[valid].astype(int)]
+    #     return result
+
+    # # Apply the NMAD mapping function to the dataset
+    # ds['precision_map'] = xr.apply_ufunc(map_nmad, 
+    #                                      ds['predicted_sd_corrected_bins'], 
+    #                                      ds['elevation_bins'], 
+    #                                      ds['slope_bins'], 
+    #                                      ds['fcf_bins'], 
+    #                                      kwargs={'nmad_array': interpolated_nmad}, 
+    #                                      dask='parallelized', 
+    #                                      output_dtypes=[float])
+    return ds
+
+    
+
+def predict_sd(aoi, target_date, snowoff_date, model_path, out_dir, out_crs='utm', out_name='deep-snow_sd.tif', write_tif=True, delete_inputs=False, cloud_cover=25):
     # download data
-    crs = download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover,)
+    crs = download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover)
     # apply model
-    ds = apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs)
+    ds = apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, out_crs='utm')
 
     return ds
 
@@ -404,13 +553,13 @@ def generate_dates(target_date_str, start_date_str):
 
     return date_list
 
-def predict_sd_ts(aoi, target_date, snowoff_date, model_path, out_dir, out_name='deep-snow_sd.tif', delete_inputs=False, cloud_cover=25):
+def predict_sd_ts(aoi, target_date, snowoff_date, model_path, out_dir, out_crs='utm', out_name='deep-snow_sd.tif', delete_inputs=False, cloud_cover=25):
     ds_list = []
     date_list = generate_dates(target_date, snowoff_date)
     for i, date in enumerate(date_list):
         print('--------------------------------------')
         print(f'working on {date}, {i+1}/{len(date_list)}')
-        ds = predict_sd(aoi, date, snowoff_date, model_path, out_dir, out_name='deep-snow_sd.tif', write_tif=False, delete_inputs=True, cloud_cover=25)
+        ds = predict_sd(aoi, date, snowoff_date, model_path, out_dir, out_crs, out_name='deep-snow_sd.tif', write_tif=False, delete_inputs=True, cloud_cover=25)
         ds = ds.expand_dims(time=[pd.to_datetime(date, format="%Y%m%d")])
         if i > 0:
             ds = ds.rio.reproject_match(ds_list[0])

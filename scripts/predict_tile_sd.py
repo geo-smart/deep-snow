@@ -21,9 +21,9 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
 
-    out_dir = '../data'
+    out_dir = 'data'
     out_name = f'{args.target_date}_deep-snow_{args.aoi["minlon"]:.{2}f}_{args.aoi["minlat"]:.{2}f}_{args.aoi["maxlon"]:.{2}f}_{args.aoi["maxlat"]:.{2}f}'
-    model_path = '../weights/quinn_ResDepth_v10_256epochs'
+    model_path = 'weights/quinn_ResDepth_v10_256epochs'
 
     max_retries = 100
     retry_delay = 5  # seconds

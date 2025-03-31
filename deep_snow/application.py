@@ -336,7 +336,7 @@ def download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover):
 
     return crs
 
-def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, out_crs):
+def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, out_crs, gpu=True):
     data_fn = f'{out_dir}/model_inputs.nc'
     print('reading input data')
     ds = xr.open_dataset(data_fn)
@@ -398,7 +398,8 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
     print('loading model')
     model = deep_snow.models.ResDepth(n_input_channels=len(input_channels), depth=5)
     model.load_state_dict(torch.load(model_path))
-    model.to('cuda')
+    if gpu = True:
+        model.to('cuda')
 
     tile_size = 1024
     padding = 50
@@ -421,8 +422,10 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
 
             # predict noise in tile
             with torch.no_grad():
-                tile_pred_sd = model(inputs_pad[:, :, ymin:ymax, xmin:xmax].to('cuda'))
-            
+                if gpu=True:
+                    tile_pred_sd = model(inputs_pad[:, :, ymin:ymax, xmin:xmax].to('cuda'))
+                else:
+                    tile_pred_sd = model(inputs_pad[:, :, ymin:ymax, xmin:xmax])
             xmax = xmax - padding
             ymax = ymax - padding
             
@@ -446,7 +449,10 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
     # undo normalization
     pred_sd = undo_norm(pred_sd, deep_snow.dataset.norm_dict['aso_sd'])
     # add to xarray dataset
-    ds['predicted_sd'] = (('y', 'x'), pred_sd.to('cpu').numpy())
+    if gpu=True:
+        ds['predicted_sd'] = (('y', 'x'), pred_sd.to('cpu').numpy())
+    else:
+        ds['predicted_sd'] = (('y', 'x'), pred_sd.numpy())
    
     # set negatives to 0
     ds['predicted_sd'] = ds['predicted_sd'].where(ds['predicted_sd'] > 0, 0)

@@ -47,7 +47,7 @@ jobs:
       - name: Prepare tiles over area of interest
         id: prep_tiles
         run: | 
-          python scripts/prep_tiles.py ${{ inputs.target_date }} ${{ inputs.aoi }}
+          python -u scripts/prep_tiles.py ${{ inputs.target_date }} "${{ inputs.aoi }}"
   # A matrix job that calls a reuseable workflow
   predict_tile_sd:
     needs: prep_tiles

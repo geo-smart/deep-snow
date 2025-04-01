@@ -60,7 +60,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.prep_dates.outputs.MATRIX) }}
-    name: ${{ matrix.name }}
+    name: ${{ matrix.target_date }}
     uses: ./.github/workflows/batch_predict_sd.yml
     with:
       target_date: ${{ matrix.target_date }}

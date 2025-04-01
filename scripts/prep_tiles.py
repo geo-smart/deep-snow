@@ -75,7 +75,7 @@ def main():
 
     # create tiles geodataframe
     tiles_gdf = create_tiles(args.aoi['minlat'], args.aoi['maxlat'], args.aoi['minlon'], args.aoi['maxlon'])
-    land_path = '../data/polygons/ne_50m_land.shp'
+    land_path = 'data/polygons/ne_50m_land.shp'
     tiles_gdf = check_tiles(tiles_gdf, land_path)
 
     # set up matrix job

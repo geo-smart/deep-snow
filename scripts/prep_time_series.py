@@ -12,10 +12,9 @@ def parse_bounding_box(value):
 
 def get_parser():
     parser = argparse.ArgumentParser(description="find dates for snow depth prediction")
-    parser.add_argument("end_date", type=str, help="most recent date to predict snow depths with format YYYYmmdd")
     parser.add_argument("begin_date", type=str, help="earliest date to predict snow depths with format YYYYmmdd")
+    parser.add_argument("end_date", type=str, help="most recent date to predict snow depths with format YYYYmmdd")
     parser.add_argument("snow_off_day", type=str, help="snow-off month and day (perhaps late summer) with format mmdd")
-    parser.add_argument("aoi", type=parse_bounding_box, help="area of interest in format 'minlon minlat maxlon maxlat'")
     return parser
 
 def generate_dates(target_date_str, start_date_str):
@@ -56,8 +55,7 @@ def main():
     date_list_matrix = []
     for date in date_list:
         snow_off_date = most_recent_occurrence(date, args.snow_off_day)
-        shortname = f'{date}_{args.aoi["minlon"]:.{2}f}_{args.aoi["minlat"]:.{2}f}_{args.aoi["maxlon"]:.{2}f}_{args.aoi["maxlat"]:.{2}f}'
-        date_list_matrix.append({'target_date':date, 'snow_off_date':snow_off_date, 'aoi':args.aoi, 'name':shortname})
+        date_list_matrix.append({'target_date':date, 'snow_off_date':snow_off_date})
     matrixJSON = f'{{"include":{json.dumps(date_list_matrix)}}}'
     print(f'number of dates: {len(date_list_matrix)}')
     with open(os.environ['GITHUB_OUTPUT'], 'a') as f:

@@ -131,8 +131,8 @@ def download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover):
     aoi_gpd = gpd.GeoDataFrame({'geometry':[shape(aoi)]}).set_crs(crs="EPSG:4326")
     crs = aoi_gpd.estimate_utm_crs()
 
-    snowon_date_range = date_range(target_date, 8)
-    snowoff_date_range = date_range(snowoff_date, 8)
+    snowon_date_range = date_range(target_date, 6)
+    snowoff_date_range = date_range(snowoff_date, 6)
 
     stac = pystac_client.Client.open(
     "https://planetarycomputer.microsoft.com/api/stac/v1",

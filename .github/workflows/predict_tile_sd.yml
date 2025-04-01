@@ -31,23 +31,23 @@ on:
             default: 'predict_tile_sd'
             type: string
     
-    workflow_call:
-        inputs:
-          target_date:
-              type: string
-              description: target date for snow depths with format yyyymmdd
-          snow_off_date:
-              type: string
-              description: snow-off date (perhaps previous late summer) with format YYYYmmdd
-          aoi:
-              type: string
-              description: area of interest in format 'minlon minlat maxlon maxlat'
-          cloud_cover:
-              type: string
-              description: percent cloud cover allowed in images (0-100)
-          workflow_name:
-              description: 'Custom workflow name'
-              type: string
+  workflow_call:
+    inputs:
+        target_date:
+            type: string
+            description: target date for snow depths with format yyyymmdd
+        snow_off_date:
+            type: string
+            description: snow-off date (perhaps previous late summer) with format YYYYmmdd
+        aoi:
+            type: string
+            description: area of interest in format 'minlon minlat maxlon maxlat'
+        cloud_cover:
+            type: string
+            description: percent cloud cover allowed in images (0-100)
+        workflow_name:
+            description: 'Custom workflow name'
+            type: string
 jobs:
     predict_tile_sd:
         name: ${{ inputs.workflow_name }}

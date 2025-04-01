@@ -1,0 +1,69 @@
+# Batch predict snow depth over many tiles
+name: batch_sd_timeseries
+run-name: predict sd ${{ inputs.begin_date }}-${{ inputs.end_date }}
+
+on:
+  workflow_dispatch:
+    inputs:
+        begin_date:
+            type: string
+            required: true
+            description: earliest date to predict snow depths with format yyyymmdd
+            default: '20220101'
+        end_date:
+            type: string
+            required: true
+            description: most recent date to predict snow depths with format yyyymmdd
+            default: '20220301'
+        snow_off_day:
+            type: string
+            required: true
+            description: snow-off month and day (perhaps late summer) with format mmdd
+            default: '0901'
+        aoi:
+            type: string
+            required: true
+            description: area of interest in format 'minlon minlat maxlon maxlat'
+            default: '-108.20 37.55 -107.61 38.09'
+        cloud_cover:
+            type: string
+            required: true
+            description: percent cloud cover allowed in images (0-100)
+            default: '100'
+
+jobs:
+  # The output of this job is a JSON mapping for a matrix job
+  prep_dates:
+    runs-on: ubuntu-latest
+    outputs:
+      MATRIX: ${{ steps.prep_dates.outputs.MATRIX_PARAMS_COMBINATIONS }}
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Conda environment with Micromamba
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          cache-environment: true
+          environment-file: environment.yml
+
+      - name: Select dates over time range
+        id: prep_dates
+        run: | 
+          python -u scripts/prep_time_series.py ${{ inputs.begin_date }} ${{ inputs.end_date }}  ${{ inputs.snow_off_day }} "${{ inputs.aoi }}"
+  # A matrix job that calls a reuseable workflow
+  prep_tiles:
+    needs: prep_dates
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prep_dates.outputs.MATRIX) }}
+    name: ${{ matrix.name }}
+    uses: ./.github/workflows/batch_predict_sd.yml
+    with:
+      target_date: ${{ matrix.target_date }}
+      snow_off_date: ${{ matrix.snow_off_date }} 
+      aoi: ${{ inputs.aoi }}
+      cloud_cover: ${{ inputs.cloud_cover }}

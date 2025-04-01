@@ -53,7 +53,7 @@ jobs:
       - name: Select dates over time range
         id: prep_dates
         run: | 
-          python -u scripts/prep_time_series.py ${{ inputs.begin_date }} ${{ inputs.end_date }}  ${{ inputs.snow_off_day }} "${{ inputs.aoi }}"
+          python -u scripts/prep_time_series.py ${{ inputs.begin_date }} ${{ inputs.end_date }}  ${{ inputs.snow_off_day }}
   # A matrix job that calls a reuseable workflow
   prep_tiles:
     needs: prep_dates

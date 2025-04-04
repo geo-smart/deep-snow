@@ -72,7 +72,7 @@ jobs:
 
             - name: Download Data and Predict Snow Depth
               run: |
-                python -u scripts/predict_tile_sd.py ${{ inputs.target_date }} ${{ inputs.snow_off_date }} "${{ inputs.aoi }}" ${{ inputs.cloud_cover }}
+                python -u scripts/actions/predict_tile_sd.py ${{ inputs.target_date }} ${{ inputs.snow_off_date }} "${{ inputs.aoi }}" ${{ inputs.cloud_cover }}
 
             - name: Upload Snow Depth Map as Artifact
               uses: actions/upload-artifact@v4

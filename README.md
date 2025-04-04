@@ -43,6 +43,18 @@ out_dir = '../../data/application'
 ds = predict_sd(aoi=aoi, target_date=target_date, snowoff_date=snowoff_date, model_path=model_path, out_dir=out_dir)
 ```
 
+### Github Actions usage
+We have set up Github Actions so that users can generate snow depth maps with no coding required! First, fork this repository. 
+#### Generating snow depth maps for a single date:
+- Under the *Actions* tab, click on the `batch_predict_sd` workflow.
+- Select the *Run workflow* dropdown and supply the required information, then click the green *Run workflow* button
+- The resulting snow depth maps will be preserved as Github Artifacts which can be downloaded. Where the area of interest is large, the workflow will output multiple 1x1-degree tiles.
+#### Generating a time series of snow depth maps
+- Under the *Actions* tab, click on the `batch_sd_timeseries` workflow.
+- Select the *Run workflow* dropdown and supply the required information, then click the green *Run workflow* button
+- This workflow will generate snow depth maps every 12 days over the user-specified date range. 
+- The resulting snow depth maps will be preserved as Github Artifacts which can be downloaded. Where the area of interest is large, the workflow will output multiple 1x1-degree tiles. 
+
 ### Data
 Our training dataset includes:
 - Sentinel-1 RTC backscatter data (snow on and snow off)

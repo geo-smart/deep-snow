@@ -3,13 +3,6 @@ import json
 import argparse
 import os
 
-def parse_bounding_box(value):
-    try:
-        minlon, minlat, maxlon, maxlat = map(float, value.split())
-        return {'minlon':minlon, 'minlat':minlat, 'maxlon':maxlon, 'maxlat':maxlat}
-    except ValueError:
-        raise argparse.ArgumentTypeError("Bounding box must be in format 'minlon minlat maxlon maxlat' with float values.")
-
 def get_parser():
     parser = argparse.ArgumentParser(description="find dates for snow depth prediction")
     parser.add_argument("begin_date", type=str, help="earliest date to predict snow depths with format YYYYmmdd")

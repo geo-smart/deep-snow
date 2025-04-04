@@ -1,27 +1,27 @@
 # deep-snow
 ### Machine learning models for remote sensing snow depth retrieval
 
-### Overview
+## Overview
 Seasonal snow provides drinking water for billions, but current global measurements of snow depth lack adequate spatial and temporal resolution for effective resource management--especially in mountainous terrain. This project is focused on training machine learning models to predict snow depth from satellite remote sensing data and accurate airborne lidar snow depth measurements. For more information, see our ["background" notebook](notebooks/background/background.ipynb). 
 
 During the 2023 GeoSMART Hackweek and the 2024 NASA Earth Sciences and UW Hackweek, the deep-snow teams trained convolutional neural networks to predict snow depth. A manuscript describing this work is in preparation. This repo contains code related to that effort as well as tools to predict snow depth from remote sensing imagery using our trained machine learning models. 
 
 <img src="imgs/tuolumne_test_v0_lowres.png" width="500">
 
-### Github Actions usage
+## Github Actions usage
 We have set up Github Actions so that users can generate snow depth maps with no coding required! First, fork this repository. 
-#### Generating snow depth maps for a single date:
+### Generating snow depth maps for a single date:
 - Under the *Actions* tab, click on the `batch_predict_sd` workflow.
 - Select the *Run workflow* dropdown and supply the required information, then click the green *Run workflow* button
 - The resulting snow depth maps will be preserved as Github Artifacts which can be downloaded. Where the area of interest is large, the workflow will output multiple 1x1-degree tiles.
-#### Generating a time series of snow depth maps
+### Generating a time series of snow depth maps
 - Under the *Actions* tab, click on the `batch_sd_timeseries` workflow.
 - Select the *Run workflow* dropdown and supply the required information, then click the green *Run workflow* button
 - This workflow will generate snow depth maps every 12 days over the user-specified date range. 
 - The resulting snow depth maps will be preserved as Github Artifacts which can be downloaded. Where the area of interest is large, the workflow will output multiple 1x1-degree tiles. 
 For more advanced usage, see the following:
 
-### Installation
+## Installation
 1) Download and install Miniconda 
 
 2) Set up Mamba
@@ -40,7 +40,7 @@ $ conda activate deep-snow
 $ pip install -e .
 ```
 
-### Example usage
+## Example usage
 See also ["apply_model_full.ipynb"](notebooks/application/apply_model_full.ipynb)
 ```
 from deep_snow.application import predict_sd
@@ -56,7 +56,7 @@ out_dir = '../../data/application'
 ds = predict_sd(aoi=aoi, target_date=target_date, snowoff_date=snowoff_date, model_path=model_path, out_dir=out_dir)
 ```
 
-### Data
+## Data
 Our training dataset includes:
 - Sentinel-1 RTC backscatter data (snow on and snow off)
 - Sentinel-2 imagery (snow on)
@@ -68,7 +68,7 @@ Snow-on Sentinel-1 and 2 data were collected nearby in time to corresponding ASO
 
 <img src="imgs/inputs_v0.png" width="500">
 
-### Contributing
+## Contributing
 
 Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are greatly appreciated.
 
@@ -80,7 +80,7 @@ Commit your Changes (git commit -m 'Add some AmazingFeature')
 Push to the Branch (git push origin feature/AmazingFeature)
 Open a Pull Request
 
-### Collaborators
+## Collaborators
 * Quinn Brencher, gbrench@uw.edu
 * Eric Gagliano, egagli@uw.edu
 
@@ -109,7 +109,7 @@ Open a Pull Request
 - Shashank Bhushan (Helper)
 - Adrian Marziliano (Helper)
 
-### Additional resources or background reading
+## Additional resources or background reading
 - [spicy-snow background](https://github.com/SnowEx/spicy-snow/blob/main/contrib/brencher/tutorial/01background.ipynb)
 - [spicy-snow paper](https://egusphere.copernicus.org/preprints/2024/egusphere-2024-1018/egusphere-2024-1018.pdf)
 - [Lievens et al. (2022) paper](https://tc.copernicus.org/articles/16/159/2022/) 

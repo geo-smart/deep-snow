@@ -97,6 +97,7 @@ class Dataset(torch.utils.data.Dataset):
         swir2 = torch.from_numpy(np.float32(ds.B12.values))
         scene_class_map = torch.from_numpy(np.float32(ds.SCL.values))
         water_vapor_product = torch.from_numpy(np.float32(ds.WVP.values))
+        snodas_sd = torch.from_numpy(np.float32(ds.snodas_sd.values))
         fcf = torch.from_numpy(np.float32(ds.fcf.values))
         elevation = torch.from_numpy(np.float32(ds.elevation.values))
         slope = torch.from_numpy(np.float32(ds.slope.values))
@@ -127,6 +128,7 @@ class Dataset(torch.utils.data.Dataset):
         # normalize layers (except gap maps and fcf)
         if self.norm == True:
             aso_sd = torch.clamp(calc_norm(aso_sd, self.norm_dict['aso_sd']), 0, 1)
+            snodas_sd = torch.clamp(calc_norm(snodas_sd, self.norm_dict['aso_sd']), 0, 1)
             snowon_vv = torch.clamp(calc_norm(snowon_vv, self.norm_dict['vv']), 0, 1)
             snowon_vh = torch.clamp(calc_norm(snowon_vh, self.norm_dict['vh']), 0, 1)
             snowoff_vv = torch.clamp(calc_norm(snowoff_vv, self.norm_dict['vv']), 0, 1)
@@ -188,6 +190,7 @@ class Dataset(torch.utils.data.Dataset):
                     'swir2': swir2[None, :, :],
                     'scene_class_map': scene_class_map[None, :, :],
                     'water_vapor_product': water_vapor_product[None, :, :],
+                    'snodas_sd': snodas_sd[None, :, :],
                     'fcf': fcf[None, :, :],
                     'elevation': elevation[None, :, :],
                     'slope': slope[None, :, :],

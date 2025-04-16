@@ -27,6 +27,7 @@ import math
 import pickle
 import xdem
 import time
+import subprocess
 
 from deep_snow.utils import calc_norm, undo_norm, db_scale, calc_dowy
 from deep_snow.dataset import norm_dict
@@ -231,6 +232,31 @@ def download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover):
     # compute median
     s2_ds = s2_ds.median(dim='time').squeeze().compute()
 
+    # download and unzip snodas snow depths
+    print('Searching for snodas data')
+    target_datetime = pd.to_datetime(target_date)
+    snodas_url = f'https://noaadata.apps.nsidc.org/NOAA/G02158/masked/{target_datetime.year}/{target_datetime.strftime("%m")}_{target_datetime.strftime("%b")}/SNODAS_{target_date}.tar'
+    os.makedirs('/tmp/snodas', exist_ok=True)
+    # Download the file
+    subprocess.run([
+        "wget", "-P", "/tmp/snodas", "-nd", "--no-check-certificate",
+        "--reject", "index.html*", "-np", "-e", "robots=off", snodas_url
+    ], check=True)
+    
+    # Extract the tarball
+    snodas_fn = f"/tmp/snodas/SNODAS_{target_date}.tar"
+    subprocess.run(["tar", "-xf", snodas_fn, "-C", "/tmp/snodas"], check=True)
+    
+    # Decompress the .gz files
+    subprocess.run(["gzip", "-d", "-f"] + [f for f in os.listdir('/tmp/snodas') if f.startswith("us_ssmv11036") and f.endswith(".gz")], cwd="/tmp/snodas", check=True)
+    
+    # crop, reproject, and mask snodas snow depths
+    snodas_da = rxr.open_rasterio(glob('/tmp/snodas/us_ssmv11036*.txt')[0]).squeeze()
+    #snodas_clipped_da = snodas_da.rio.clip_box(snowon_s1_ds, crs="EPSG:4326")
+    snodas_resampled_da = snodas_da.rio.reproject_match(snowon_s1_ds, resampling=rio.enums.Resampling.bilinear)
+    snodas_resampled_da = snodas_resampled_da.where(snodas_resampled_da != -9999)/1000
+    snodas_ds = snodas_resampled_da.to_dataset(name="snodas_sd")
+
     # search for COP30 DEM 
     print('searching for COP30 dem data')
     for attempt in range(max_retries):
@@ -277,7 +303,7 @@ def download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover):
 
     # combine datasets
     print('combining datasets')
-    ds_list = [snowon_s1_ds, snowoff_s1_ds, s2_ds, cop30_ds] # with fcf: [snowon_s1_ds, snowoff_s1_ds, s2_ds, cop30_ds, fcf_ds]
+    ds_list = [snowon_s1_ds, snowoff_s1_ds, s2_ds, snodas_ds, cop30_ds] # with fcf: [snowon_s1_ds, snowoff_s1_ds, s2_ds, cop30_ds, fcf_ds]
     ds = xr.merge(ds_list, compat='override', join='override').squeeze()
 
     # radar data variables
@@ -362,6 +388,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
     data_dict['swir2'] = calc_norm(torch.Tensor(ds['B12'].values), norm_dict['swir2'])
     data_dict['scene_class_map'] = calc_norm(torch.Tensor(ds['SCL'].values), norm_dict['scene_class_map'])
     data_dict['water_vapor_product'] = calc_norm(torch.Tensor(ds['WVP'].values), norm_dict['water_vapor_product'])
+    data_dict['snodas_sd'] = calc_norm(torch.Tensor(ds['snodas_sd'].values), norm_dict['aso_sd'])
     data_dict['elevation'] = calc_norm(torch.Tensor(ds['elevation'].values), norm_dict['elevation'])
     data_dict['aspect'] = calc_norm(torch.Tensor(ds['aspect'].values), norm_dict['aspect'])
     data_dict['slope'] = calc_norm(torch.Tensor(ds['slope'].values), norm_dict['slope'])
@@ -390,6 +417,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
         'swir2',
         'ndsi',
         'ndwi',
+        'snodas_sd',
         'elevation',
         'latitude',
         'longitude']
@@ -459,7 +487,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
     # set negatives to 0
     ds['predicted_sd'] = ds['predicted_sd'].where(ds['predicted_sd'] > 0, 0)
 
-    ds = calculate_uncertainty(ds)
+    ds = calculate_uncertainty(ds, model_path)
     # mask areas with missing data
     #ds['predicted_sd_corrected'] = ds['predicted_sd_corrected'].where(ds['data_gaps'] == 0)
     ds = ds.rio.write_crs(crs)
@@ -481,8 +509,9 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
     
     return ds
 
-def calculate_uncertainty(ds):
-    bias_path = 'data/deep-snow_data/bias_interpolator.pkl'
+def calculate_uncertainty(ds, model_path):
+    module_dir = os.path.dirname(os.path.abspath(__file__))
+    bias_path = os.path.join(module_dir, "..", "data", "deep-snow_data", f"{model_path.split('/')[-1]}_bias_interpolator.pkl")
     
     # Load the bias interpolator
     with open(bias_path, 'rb') as f:

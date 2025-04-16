@@ -511,7 +511,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
 
 def calculate_uncertainty(ds, model_path):
     module_dir = os.path.dirname(os.path.abspath(__file__))
-    bias_path = os.path.join(module_dir, "..", "data", "deep-snow_data", f"{model_path.split('/')[-1]}_bias_interpolator.pkl")
+    bias_path = os.path.join(module_dir, "data", f"{model_path.split('/')[-1]}_bias_interpolator.pkl")
     
     # Load the bias interpolator
     with open(bias_path, 'rb') as f:

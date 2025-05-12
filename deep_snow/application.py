@@ -499,7 +499,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
     
     if write_tif == True:
         # write out geotif
-        ds.predicted_sd_corrected.rio.to_raster(f'{out_dir}/{out_name}_sd.tif', compress='lzw')
+        ds.predicted_sd_corrected.rio.to_raster(f'{out_dir}/{out_name}', compress='lzw')
         #ds.precision_map.rio.to_raster(f'{out_dir}/{out_name}_precision.tif', compress='lzw')
 
     if delete_inputs == True:

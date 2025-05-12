@@ -1,0 +1,44 @@
+name: easysnowdata
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+ - python=3.10
+ - numpy
+ - pandas
+ - xarray
+ - matplotlib
+ - wget 
+ - requests
+ - urllib3
+ - dask
+ - lxml
+ - gdal
+ - rasterio
+ - rioxarray
+ - geopandas
+ - shapely
+ - contextily
+ - earthaccess
+ - ipykernel
+ - pystac-client
+ - planetary-computer
+ - odc-stac
+ - xee
+ - bs4
+ - py3dep
+ - zarr
+ - bottleneck
+ - flox
+ - netCDF4
+ - h5netcdf
+ - earthengine-api
+ - gcsfs
+ - fsspec
+ - scikit-image 
+ - pip
+ 
+ - pip:
+   - matplotlib-scalebar
+   - "--editable=./"
+#   - "--editable=git+https://github.com/egagli/easysnowdata.git#egg=easysnowdata"

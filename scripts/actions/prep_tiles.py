@@ -18,7 +18,7 @@ def get_parser():
     parser.add_argument("aoi", type=parse_bounding_box, help="area of interest in format 'minlon minlat maxlon maxlat'")
     return parser
 
-def create_tiles(min_lat, max_lat, min_lon, max_lon, tile_size=1, padding=0.05):
+def create_tiles(min_lat, max_lat, min_lon, max_lon, tile_size=2, padding=0.05):
     """
     Create a GeoDataFrame of tiles over the area of interest with an overlap on the top and bottom edges.
     

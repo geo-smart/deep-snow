@@ -374,7 +374,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
     data_dict['snowon_vh'] = calc_norm(torch.Tensor(ds['snowon_vh'].values), norm_dict['vh'])
     data_dict['snowoff_vv'] = calc_norm(torch.Tensor(ds['snowoff_vv'].values), norm_dict['vv'])
     data_dict['snowoff_vh'] = calc_norm(torch.Tensor(ds['snowoff_vh'].values), norm_dict['vh'])
-    data_dict['aerosol_optical_thickness'] = calc_norm(torch.Tensor(ds['AOT'].values), norm_dict['AOT'])
+    data_dict['aerosol_optical_thickness'] = calc_norm(torch.Tensor(ds['AOT'].values), norm_dict['aerosol_optical_thickness'])
     data_dict['coastal_aerosol'] = calc_norm(torch.Tensor(ds['B01'].values), norm_dict['coastal'])
     data_dict['blue'] = calc_norm(torch.Tensor(ds['B02'].values), norm_dict['blue'])
     data_dict['green'] = calc_norm(torch.Tensor(ds['B03'].values), norm_dict['green'])

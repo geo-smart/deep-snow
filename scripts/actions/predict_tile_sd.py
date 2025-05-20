@@ -23,7 +23,7 @@ def main():
 
     out_dir = 'data'
     out_name = f'{args.target_date}_deep-snow_{args.aoi["minlon"]:.{2}f}_{args.aoi["minlat"]:.{2}f}_{args.aoi["maxlon"]:.{2}f}_{args.aoi["maxlat"]:.{2}f}'
-    model_path = 'weights/quinn_ResDepth_v11_254epochs'
+    model_path = 'weights/ResDepth_lr0.000457131171011064_weightdecay0.00010523970398286011_epochs62_mintestloss0.00091'
 
     max_retries = 100
     retry_delay = 5  # seconds

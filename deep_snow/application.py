@@ -284,22 +284,22 @@ def download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover):
     # reproject to match radar dataset
     cop30_ds = cop30_ds.rio.reproject_match(snowon_s1_ds, resampling=rio.enums.Resampling.bilinear).compute()
 
-    # # download fractional forest cover data
-    # print('downloading fractional forest cover data')
-    # fcf_path ='/tmp/fcf_global.tif'
-    # download_fcf(fcf_path)
+    # download fractional forest cover data
+    print('downloading fractional forest cover data')
+    fcf_path ='/tmp/fcf_global.tif'
+    download_fcf(fcf_path)
     
-    # # open as dataArray and return
-    # fcf_ds = rxr.open_rasterio(fcf_path)
+    # open as dataArray and return
+    fcf_ds = rxr.open_rasterio(fcf_path)
     
-    # # clip to aoi
-    # fcf_ds = fcf_ds.rio.clip_box(*aoi_gpd.total_bounds,crs="EPSG:4326") 
-    # # promote to dataset
-    # fcf_ds = fcf_ds.rename('fcf').squeeze().to_dataset()
-    # # reproject to match radar dataset
-    # fcf_ds = fcf_ds.rio.reproject_match(snowon_s1_ds, resampling=rio.enums.Resampling.bilinear)
-    # # set values above 100 to nodata
-    # fcf_ds['fcf'] = fcf_ds['fcf'].where(fcf_ds['fcf'] <= 100, np.nan)/100
+    # clip to aoi
+    fcf_ds = fcf_ds.rio.clip_box(*aoi_gpd.total_bounds,crs="EPSG:4326") 
+    # promote to dataset
+    fcf_ds = fcf_ds.rename('fcf').squeeze().to_dataset()
+    # reproject to match radar dataset
+    fcf_ds = fcf_ds.rio.reproject_match(snowon_s1_ds, resampling=rio.enums.Resampling.bilinear)
+    # set values above 100 to nodata
+    fcf_ds['fcf'] = fcf_ds['fcf'].where(fcf_ds['fcf'] <= 100, np.nan)/100
 
     # combine datasets
     print('combining datasets')
@@ -404,23 +404,24 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
     data_dict['snowon_cr'] = calc_norm(torch.Tensor(ds['snowon_cr'].values), norm_dict['cr'])
     data_dict['snowoff_cr'] = calc_norm(torch.Tensor(ds['snowoff_cr'].values), norm_dict['cr'])
     data_dict['delta_cr'] = calc_norm(torch.Tensor(ds['delta_cr'].values), norm_dict['delta_cr'])
-    #data_dict['fcf'] = torch.Tensor(ds['fcf'].values)
+    data_dict['fcf'] = torch.Tensor(ds['fcf'].values)
 
     # clamp values, add dimensions
     data_dict = {key: torch.clamp(data_dict[key], 0, 1)[None, None, :, :] for key in data_dict.keys()}
 
     # define input channels for model
-    input_channels = [
-        'snowon_vv',
-        'delta_cr',
-        'green',
-        'swir2',
-        'ndsi',
-        'ndwi',
-        'snodas_sd',
-        'elevation',
-        'latitude',
-        'longitude']
+    input_channels = ['snodas_sd',
+                  'blue',
+                  'swir1',
+                  'ndsi',
+                  'elevation',
+                  'northness',
+                  'slope',
+                  'curvature',
+                  'dowy',
+                  'delta_cr',
+                  'fcf'
+                 ]
 
     #load previous model
     print('loading model')
@@ -429,7 +430,6 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
         model.load_state_dict(torch.load(model_path))
         model.to('cuda')
     else:
-        model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
 
     tile_size = 1024
     padding = 50
@@ -487,7 +487,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
     # set negatives to 0
     ds['predicted_sd'] = ds['predicted_sd'].where(ds['predicted_sd'] > 0, 0)
 
-    ds = calculate_uncertainty(ds, model_path)
+    # ds = calculate_uncertainty(ds, model_path)
     # mask areas with missing data
     #ds['predicted_sd_corrected'] = ds['predicted_sd_corrected'].where(ds['data_gaps'] == 0)
     ds = ds.rio.write_crs(crs)
@@ -499,7 +499,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
     
     if write_tif == True:
         # write out geotif
-        ds.predicted_sd_corrected.rio.to_raster(f'{out_dir}/{out_name}', compress='lzw')
+        ds.predicted_sd.rio.to_raster(f'{out_dir}/{out_name}', compress='lzw')
         #ds.precision_map.rio.to_raster(f'{out_dir}/{out_name}_precision.tif', compress='lzw')
 
     if delete_inputs == True:

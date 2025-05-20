@@ -303,7 +303,7 @@ def download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover):
 
     # combine datasets
     print('combining datasets')
-    ds_list = [snowon_s1_ds, snowoff_s1_ds, s2_ds, snodas_ds, cop30_ds] # with fcf: [snowon_s1_ds, snowoff_s1_ds, s2_ds, cop30_ds, fcf_ds]
+    ds_list = [snowon_s1_ds, snowoff_s1_ds, s2_ds, snodas_ds, cop30_ds, fcf_ds]
     ds = xr.merge(ds_list, compat='override', join='override').squeeze()
 
     # radar data variables

@@ -114,7 +114,7 @@ def download_fcf(out_fp):
     # download just forest cover fraction to out file
     url_download(fcf_url, out_fp)
 
-def download_data(aoi, target_date, snowoff_date, buffer_period=6, out_dir, cloud_cover):
+def download_data(aoi, target_date, snowoff_date, buffer_period, out_dir, cloud_cover):
 
     aoi = {
     "type": "Polygon",

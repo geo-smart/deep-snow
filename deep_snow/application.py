@@ -114,7 +114,7 @@ def download_fcf(out_fp):
     # download just forest cover fraction to out file
     url_download(fcf_url, out_fp)
 
-def download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover):
+def download_data(aoi, target_date, snowoff_date, buffer_period=6, out_dir, cloud_cover):
 
     aoi = {
     "type": "Polygon",
@@ -132,8 +132,8 @@ def download_data(aoi, target_date, snowoff_date, out_dir, cloud_cover):
     aoi_gpd = gpd.GeoDataFrame({'geometry':[shape(aoi)]}).set_crs(crs="EPSG:4326")
     crs = aoi_gpd.estimate_utm_crs()
 
-    snowon_date_range = date_range(target_date, 6)
-    snowoff_date_range = date_range(snowoff_date, 6)
+    snowon_date_range = date_range(target_date, buffer_period)
+    snowoff_date_range = date_range(snowoff_date, buffer_period)
 
     stac = pystac_client.Client.open(
     "https://planetarycomputer.microsoft.com/api/stac/v1",

@@ -512,7 +512,7 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
     
     return ds
 
-def apply_model_ensemble(crs, model_path_list, out_dir, out_name, write_tif, delete_inputs, out_crs, gpu=True):
+def apply_model_ensemble(crs, model_paths_list, out_dir, out_name, write_tif, delete_inputs, out_crs, gpu=True):
     data_fn = f'{out_dir}/model_inputs.nc'
     print('reading input data')
     ds = xr.open_dataset(data_fn)
@@ -578,7 +578,7 @@ def apply_model_ensemble(crs, model_path_list, out_dir, out_name, write_tif, del
     print('loading models')
     model_list = []
 
-    for model_path in model_path_list:
+    for model_path in model_paths_list:
         model = deep_snow.models.ResDepth(n_input_channels=len(input_channels), depth=5)
         if gpu == True:
             model.load_state_dict(torch.load(model_path))

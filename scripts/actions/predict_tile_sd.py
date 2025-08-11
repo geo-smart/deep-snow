@@ -15,7 +15,7 @@ def get_parser():
     parser.add_argument("snow_off_date", type=str, help="snow-off date (perhaps previous late summer) with format YYYYmmdd")
     parser.add_argument("aoi", type=parse_bounding_box, help="area of interest in format 'minlon minlat maxlon maxlat'")
     parser.add_argument("cloud_cover", type=str, help="percent cloud cover allowed in Sentinel-2 images (0-100)")
-    parser.add_argument("use_ensemble", type=str, help="whether to use model ensemble, True or False
+    parser.add_argument("use_ensemble", type=str, help="whether to use model ensemble, True or False"
     return parser
 
 def main():

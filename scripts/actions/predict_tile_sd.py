@@ -37,7 +37,7 @@ def main():
     for attempt in range(max_retries):
         try:
             crs = download_data(aoi=args.aoi, target_date=args.target_date, buffer_period=buffer_period, snowoff_date=args.snow_off_date, out_dir=out_dir, cloud_cover=float(args.cloud_cover))
-            if args.use_ensemble == True:
+            if args.use_ensemble == "True":
                 ds = apply_model(out_dir=out_dir, out_name=out_name, crs=crs, write_tif=True, model_path_list=model_path_list, delete_inputs=True, out_crs='wgs84', gpu=False)
             else:
                 ds = apply_model(out_dir=out_dir, out_name=out_name, crs=crs, write_tif=True, model_path=model_3_path, delete_inputs=True, out_crs='wgs84', gpu=False)

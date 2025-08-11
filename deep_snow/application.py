@@ -621,7 +621,7 @@ def apply_model_ensemble(crs, model_paths_list, out_dir, out_name, write_tif, de
                         tile_preds.append(tile_model_pred_sd)
 
                 tile_preds = torch.stack(tile_preds, dim=0)
-                tile_pred_median = torch.median(tile_preds, dim=0)
+                tile_pred_median = torch.median(tile_preds, dim=0).values
 
             xmax = xmax - padding
             ymax = ymax - padding

@@ -30,6 +30,14 @@ on:
             required: true
             description: percent cloud cover allowed in images (0-100)
             default: '100'
+        use_ensemble:
+            type: choice
+            required: true
+            description: whether to use model ensemble
+            default: 'True'
+            options:
+            - 'True'
+            - 'False'
 
 jobs:
   # The output of this job is a JSON mapping for a matrix job
@@ -67,3 +75,4 @@ jobs:
       snow_off_date: ${{ matrix.snow_off_date }} 
       aoi: ${{ inputs.aoi }}
       cloud_cover: ${{ inputs.cloud_cover }}
+      use_ensemble: ${{ inputs.use_ensemble }}

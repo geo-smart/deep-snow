@@ -25,6 +25,14 @@ on:
             required: true
             description: percent cloud cover allowed in images (0-100)
             default: '100'
+        use_ensemble:
+            type: choice
+            required: true
+            description: whether to use model ensemble
+            default: 'True'
+            options:
+            - 'True'
+            - 'False'
         workflow_name:
             description: 'Custom workflow name'
             required: false
@@ -45,6 +53,9 @@ on:
         cloud_cover:
             type: string
             description: percent cloud cover allowed in images (0-100)
+        use_ensemble:
+            type: string
+            description: whether to use model ensemble (True or False)
         workflow_name:
             description: 'Custom workflow name'
             type: string
@@ -72,7 +83,7 @@ jobs:
 
             - name: Download Data and Predict Snow Depth
               run: |
-                python -u scripts/actions/predict_tile_sd.py ${{ inputs.target_date }} ${{ inputs.snow_off_date }} "${{ inputs.aoi }}" ${{ inputs.cloud_cover }}
+                python -u scripts/actions/predict_tile_sd.py ${{ inputs.target_date }} ${{ inputs.snow_off_date }} "${{ inputs.aoi }}" ${{ inputs.cloud_cover }} ${{ inputs.use_ensemble }}
 
             - name: Upload Snow Depth Map as Artifact
               uses: actions/upload-artifact@v4

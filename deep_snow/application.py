@@ -512,6 +512,170 @@ def apply_model(crs, model_path, out_dir, out_name, write_tif, delete_inputs, ou
     
     return ds
 
+def apply_model_ensemble(crs, model_path_list, out_dir, out_name, write_tif, delete_inputs, out_crs, gpu=True):
+    data_fn = f'{out_dir}/model_inputs.nc'
+    print('reading input data')
+    ds = xr.open_dataset(data_fn)
+    ds = ds.fillna(0)
+
+    data_dict = {}
+    # normalize layers 
+    data_dict['snowon_vv'] = calc_norm(torch.Tensor(ds['snowon_vv'].values), norm_dict['vv'])
+    data_dict['snowon_vh'] = calc_norm(torch.Tensor(ds['snowon_vh'].values), norm_dict['vh'])
+    data_dict['snowoff_vv'] = calc_norm(torch.Tensor(ds['snowoff_vv'].values), norm_dict['vv'])
+    data_dict['snowoff_vh'] = calc_norm(torch.Tensor(ds['snowoff_vh'].values), norm_dict['vh'])
+    data_dict['aerosol_optical_thickness'] = calc_norm(torch.Tensor(ds['AOT'].values), norm_dict['aerosol_optical_thickness'])
+    data_dict['coastal_aerosol'] = calc_norm(torch.Tensor(ds['B01'].values), norm_dict['coastal_aerosol'])
+    data_dict['blue'] = calc_norm(torch.Tensor(ds['B02'].values), norm_dict['blue'])
+    data_dict['green'] = calc_norm(torch.Tensor(ds['B03'].values), norm_dict['green'])
+    data_dict['red'] = calc_norm(torch.Tensor(ds['B04'].values), norm_dict['red'])
+    data_dict['red_edge1'] = calc_norm(torch.Tensor(ds['B05'].values), norm_dict['red_edge1'])
+    data_dict['red_edge2'] = calc_norm(torch.Tensor(ds['B06'].values), norm_dict['red_edge2'])
+    data_dict['red_edge3'] = calc_norm(torch.Tensor(ds['B07'].values), norm_dict['red_edge3'])
+    data_dict['nir'] = calc_norm(torch.Tensor(ds['B08'].values), norm_dict['nir'])
+    data_dict['water_vapor'] = calc_norm(torch.Tensor(ds['B09'].values), norm_dict['water_vapor'])
+    data_dict['swir1'] = calc_norm(torch.Tensor(ds['B11'].values), norm_dict['swir1'])
+    data_dict['swir2'] = calc_norm(torch.Tensor(ds['B12'].values), norm_dict['swir2'])
+    data_dict['scene_class_map'] = calc_norm(torch.Tensor(ds['SCL'].values), norm_dict['scene_class_map'])
+    data_dict['water_vapor_product'] = calc_norm(torch.Tensor(ds['WVP'].values), norm_dict['water_vapor_product'])
+    data_dict['snodas_sd'] = calc_norm(torch.Tensor(ds['snodas_sd'].values), norm_dict['aso_sd'])
+    data_dict['elevation'] = calc_norm(torch.Tensor(ds['elevation'].values), norm_dict['elevation'])
+    data_dict['aspect'] = calc_norm(torch.Tensor(ds['aspect'].values), norm_dict['aspect'])
+    data_dict['northness'] = calc_norm(torch.Tensor(ds['northness'].values), [0, 1])
+    data_dict['slope'] = calc_norm(torch.Tensor(ds['slope'].values), norm_dict['slope'])
+    data_dict['curvature'] = calc_norm(torch.Tensor(ds['curvature'].values), norm_dict['curvature'])
+    data_dict['tpi'] = calc_norm(torch.Tensor(ds['tpi'].values), norm_dict['tpi'])
+    data_dict['tri'] = calc_norm(torch.Tensor(ds['tri'].values), norm_dict['tri'])
+    data_dict['latitude'] = calc_norm(torch.Tensor(ds['latitude'].values), norm_dict['latitude'])
+    data_dict['longitude'] = calc_norm(torch.Tensor(ds['longitude'].values), norm_dict['longitude'])
+    data_dict['dowy'] = calc_norm(torch.Tensor(ds['dowy'].values), [0, 365])
+    data_dict['ndvi'] = calc_norm(torch.Tensor(ds['ndvi'].values), [-1, 1])
+    data_dict['ndsi'] = calc_norm(torch.Tensor(ds['ndsi'].values), [-1, 1])
+    data_dict['ndwi'] = calc_norm(torch.Tensor(ds['ndwi'].values), [-1, 1])
+    data_dict['snowon_cr'] = calc_norm(torch.Tensor(ds['snowon_cr'].values), norm_dict['cr'])
+    data_dict['snowoff_cr'] = calc_norm(torch.Tensor(ds['snowoff_cr'].values), norm_dict['cr'])
+    data_dict['delta_cr'] = calc_norm(torch.Tensor(ds['delta_cr'].values), norm_dict['delta_cr'])
+    data_dict['fcf'] = torch.Tensor(ds['fcf'].values)
+
+    # clamp values, add dimensions
+    data_dict = {key: torch.clamp(data_dict[key], 0, 1)[None, None, :, :] for key in data_dict.keys()}
+
+    # define input channels for model
+    input_channels = ['snodas_sd',
+                  'blue',
+                  'swir1',
+                  'ndsi',
+                  'elevation',
+                  'northness',
+                  'slope',
+                  'curvature',
+                  'dowy',
+                  'delta_cr',
+                  'fcf'
+                 ]
+
+    #load previous model
+    print('loading models')
+    model_list = []
+
+    for model_path in model_paths_list:
+        model = deep_snow.models.ResDepth(n_input_channels=len(input_channels), depth=5)
+        if gpu == True:
+            model.load_state_dict(torch.load(model_path))
+            model.to('cuda')
+        else:
+            state_dict = torch.load(model_path, map_location='cpu')  
+            model.load_state_dict(state_dict)
+        model.eval()  
+        model_list.append(model)
+
+    tile_size = 1024
+    padding = 50
+
+    xmin=0
+    xmax=tile_size
+    ymin=0
+    ymax=tile_size
+    
+    inputs = torch.cat([data_dict[channel] for channel in input_channels], dim=1)
+    inputs_pad = F.pad(inputs, (0, tile_size, 0, tile_size), 'constant', 0)
+    pred_pad = torch.empty_like(inputs_pad[0, 0, :, :])
+    
+    for i in range(math.ceil((len(ds.x)/(tile_size-2*padding)))):
+        for j in range(math.ceil((len(ds.y)/(tile_size-2*padding)))):
+            ymin = j*(tile_size-2*padding)
+            ymax = ymin + tile_size
+            xmin = i*(tile_size-2*padding)
+            xmax = xmin + tile_size
+
+            # predict noise in tile
+            with torch.no_grad():
+                tile_preds = []  # list to hold predicted_sd from each model
+                if gpu == True:
+                    for model in model_list:
+                        tile_model_pred_sd = model(inputs_pad[:, :, ymin:ymax, xmin:xmax].to('cuda'))
+                        tile_preds.append(tile_model_pred_sd)
+                else:
+                    for model in model_list:
+                        tile_model_pred_sd = model(inputs_pad[:, :, ymin:ymax, xmin:xmax])
+                        tile_preds.append(tile_model_pred_sd)
+
+                tile_preds = torch.stack(tile_preds, dim=0)
+                tile_pred_median = torch.median(tile_preds, dim=0)
+
+            xmax = xmax - padding
+            ymax = ymax - padding
+            
+            if ymin == 0 and xmin == 0:
+                tile_pred_sd = tile_pred_median.detach().squeeze()[:-padding, :-padding]
+            elif ymin == 0:
+                xmin = xmin + padding
+                tile_pred_sd = tile_pred_median.detach().squeeze()[:-padding, padding:-padding]
+            elif xmin == 0: 
+                ymin = ymin + padding
+                tile_pred_sd = tile_pred_median.detach().squeeze()[padding:-padding, :-padding]
+            else:
+                xmin = xmin + padding
+                ymin = ymin + padding
+                tile_pred_sd = tile_pred_median.detach().squeeze()[padding:-padding, padding:-padding]
+            
+            pred_pad[ymin:ymax, xmin:xmax] = tile_pred_sd
+    
+    # recover original dimensions
+    pred_sd = pred_pad[0:(len(ds.y)), 0:(len(ds.x))]
+    # undo normalization
+    pred_sd = undo_norm(pred_sd, deep_snow.dataset.norm_dict['aso_sd'])
+    # add to xarray dataset
+    if gpu == True:
+        ds['predicted_sd'] = (('y', 'x'), pred_sd.to('cpu').numpy())
+    else:
+        ds['predicted_sd'] = (('y', 'x'), pred_sd.numpy())
+   
+    # set negatives to 0
+    ds['predicted_sd'] = ds['predicted_sd'].where(ds['predicted_sd'] > 0, 0)
+
+    # ds = calculate_uncertainty(ds, model_path)
+    # mask areas with missing data
+    #ds['predicted_sd_corrected'] = ds['predicted_sd_corrected'].where(ds['data_gaps'] == 0)
+    ds = ds.rio.write_crs(crs)
+
+    if out_crs == 'wgs84':
+        crs = 'EPSG:4326'
+        ds = ds.rio.reproject(crs)
+        ds = ds.rio.write_crs(crs)
+    
+    if write_tif == True:
+        # write out geotif
+        ds.predicted_sd.rio.to_raster(f'{out_dir}/{out_name}_sd.tif', compress='lzw')
+        #ds.precision_map.rio.to_raster(f'{out_dir}/{out_name}_precision.tif', compress='lzw')
+
+    if delete_inputs == True:
+        os.remove(data_fn)
+
+    print('prediction finished!')
+    
+    return ds
+
 def calculate_uncertainty(ds, model_path):
     module_dir = os.path.dirname(os.path.abspath(__file__))
     bias_path = os.path.join(module_dir, "data", f"{model_path.split('/')[-1]}_bias_interpolator.pkl")

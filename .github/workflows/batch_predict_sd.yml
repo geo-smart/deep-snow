@@ -25,6 +25,14 @@ on:
             required: true
             description: percent cloud cover allowed in images (0-100)
             default: '100'
+        use_ensemble:
+            type: choice
+            required: true
+            description: whether to use model ensemble
+            default: 'True'
+            options:
+            - 'True'
+            - 'False'
   
   workflow_call:
     inputs:
@@ -40,6 +48,9 @@ on:
         cloud_cover:
             type: string
             description: percent cloud cover allowed in images (0-100)
+        use_ensemble:
+            type: string
+            description: whether to use model ensemble (True or False)
 jobs:
   # The output of this job is a JSON mapping for a matrix job
   prep_tiles:
@@ -76,4 +87,5 @@ jobs:
       snow_off_date: ${{ inputs.snow_off_date }} 
       aoi: ${{ matrix.aoi }}
       cloud_cover: ${{ inputs.cloud_cover }}
+      use_ensemble: ${{ inputs.use_ensemble }}
       workflow_name: ${{ matrix.name }}

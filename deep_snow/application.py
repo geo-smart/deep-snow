@@ -578,7 +578,7 @@ def apply_model_ensemble(crs, model_path_list, out_dir, out_name, write_tif, del
     print('loading models')
     model_list = []
 
-    for model_path in model_paths_list:
+    for model_path in model_path_list:
         model = deep_snow.models.ResDepth(n_input_channels=len(input_channels), depth=5)
         if gpu == True:
             model.load_state_dict(torch.load(model_path))

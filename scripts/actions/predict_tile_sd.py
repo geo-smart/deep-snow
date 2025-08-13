@@ -46,7 +46,7 @@ def main():
             if str(e) == "Can't load empty sequence":
                 buffer_period += 2
                 print(f"ValueError encountered: {e}. Increasing buffer_period to {buffer_period} and retrying...")
-            elif str(e) == "TypeError: 'list' object cannot be interpreted as an integer":
+            elif str(e) == "'list' object cannot be interpreted as an integer":
                 buffer_period += 2
                 print(f"TypeError encountered: {e}. Increasing buffer_period to {buffer_period} and retrying...")
             else:

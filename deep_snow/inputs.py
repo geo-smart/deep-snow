@@ -56,6 +56,14 @@ def get_default_snodas_cache_dir():
     return str(Path("data") / "cache" / "snodas")
 
 
+def get_default_hill_pptwt_cache_path():
+    return str(Path("data") / "cache" / "hill" / "ppt_wt_final.txt")
+
+
+def get_default_hill_td_cache_path():
+    return str(Path("data") / "cache" / "hill" / "td_final.txt")
+
+
 def generate_dates(target_date_str, start_date_str, step_days=12):
     target_date = datetime.strptime(target_date_str, "%Y%m%d")
     start_date = datetime.strptime(start_date_str, "%Y%m%d")

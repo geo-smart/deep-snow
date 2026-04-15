@@ -12,7 +12,6 @@ setup(
             "data/*.pkl",
             "resources/weights/*",
             "resources/polygons/ne_50m_land.*",
-            "resources/hill/*",
         ]
     },
     include_package_data=True,

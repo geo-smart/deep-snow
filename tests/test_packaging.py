@@ -54,9 +54,9 @@ class PackagingSmokeTests(unittest.TestCase):
                         "print(Path(DEFAULT_SINGLE_MODEL_PATH).resolve()); "
                         "print(Path(DEFAULT_TILE_LAND_PATH).exists()); "
                         "print(Path(DEFAULT_TILE_LAND_PATH).resolve()); "
-                        "print(Path(DEFAULT_HILL_PPTWT_PATH).exists()); "
+                        "print(Path(DEFAULT_HILL_PPTWT_PATH).name); "
                         "print(Path(DEFAULT_HILL_PPTWT_PATH).resolve()); "
-                        "print(Path(DEFAULT_HILL_TD_PATH).exists()); "
+                        "print(Path(DEFAULT_HILL_TD_PATH).name); "
                         "print(Path(DEFAULT_HILL_TD_PATH).resolve())"
                     ),
                 ],
@@ -73,20 +73,18 @@ class PackagingSmokeTests(unittest.TestCase):
         single_model_path = Path(lines[2])
         land_path_exists = lines[3] == "True"
         land_path = Path(lines[4])
-        hill_pptwt_exists = lines[5] == "True"
+        hill_pptwt_name = lines[5]
         hill_pptwt_path = Path(lines[6])
-        hill_td_exists = lines[7] == "True"
+        hill_td_name = lines[7]
         hill_td_path = Path(lines[8])
 
         self.assertTrue(single_model_exists)
         self.assertTrue(land_path_exists)
-        self.assertTrue(hill_pptwt_exists)
-        self.assertTrue(hill_td_exists)
         self.assertTrue(module_path.is_relative_to(install_root))
         self.assertTrue(single_model_path.is_relative_to(install_root))
         self.assertTrue(land_path.is_relative_to(install_root))
-        self.assertTrue(hill_pptwt_path.is_relative_to(install_root))
-        self.assertTrue(hill_td_path.is_relative_to(install_root))
         self.assertEqual(land_path.name, "ne_50m_land.shp")
-        self.assertEqual(hill_pptwt_path.name, "ppt_wt_final.txt")
-        self.assertEqual(hill_td_path.name, "td_final.txt")
+        self.assertEqual(hill_pptwt_name, "ppt_wt_final.txt")
+        self.assertEqual(hill_td_name, "td_final.txt")
+        self.assertTrue(hill_pptwt_path.name.endswith("ppt_wt_final.txt"))
+        self.assertTrue(hill_td_path.name.endswith("td_final.txt"))

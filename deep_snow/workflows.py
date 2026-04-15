@@ -376,6 +376,7 @@ def _predict_single_tile(
         print_prediction_summary,
         read_prediction_input_provenance,
     )
+    from deep_snow.acquisition import ensure_hill_inputs
 
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     if validate_inputs:
@@ -383,6 +384,8 @@ def _predict_single_tile(
         validate_prediction_aoi(aoi)
     summary_aoi = crop_aoi or aoi
     out_name = out_name or build_output_name(target_date, summary_aoi)
+    if predict_swe:
+        hill_pptwt_path, hill_td_path = ensure_hill_inputs(hill_pptwt_path, hill_td_path)
     model_path, model_paths_list = resolve_prediction_models(
         use_ensemble=use_ensemble,
         model_path=model_path,

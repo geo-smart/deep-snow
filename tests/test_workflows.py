@@ -60,9 +60,9 @@ class WorkflowTests(unittest.TestCase):
         self.assertTrue(land_path.exists())
         self.assertEqual(land_path.name, "ne_50m_land.shp")
 
-    def test_default_hill_density_inputs_exist(self):
-        self.assertTrue(Path(get_default_hill_pptwt_path()).exists())
-        self.assertTrue(Path(get_default_hill_td_path()).exists())
+    def test_default_hill_density_paths_point_to_cache_files(self):
+        self.assertTrue(get_default_hill_pptwt_path().replace("\\", "/").endswith("data/cache/hill/ppt_wt_final.txt"))
+        self.assertTrue(get_default_hill_td_path().replace("\\", "/").endswith("data/cache/hill/td_final.txt"))
 
 
 class WorkflowRoutingTests(unittest.TestCase):

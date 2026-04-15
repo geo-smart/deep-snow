@@ -1,11 +1,12 @@
 from pathlib import Path
 
+from deep_snow.inputs import get_default_hill_pptwt_cache_path, get_default_hill_td_cache_path
+
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 RESOURCE_ROOT = PACKAGE_ROOT / "resources"
 WEIGHTS_ROOT = RESOURCE_ROOT / "weights"
 POLYGONS_ROOT = RESOURCE_ROOT / "polygons"
-HILL_DENSITY_ROOT = RESOURCE_ROOT / "hill"
 
 
 DEFAULT_MODEL_FILENAMES = [
@@ -34,8 +35,8 @@ def get_default_land_path():
 
 
 def get_default_hill_pptwt_path():
-    return str((HILL_DENSITY_ROOT / "ppt_wt_final.txt").resolve())
+    return str(Path(get_default_hill_pptwt_cache_path()).resolve())
 
 
 def get_default_hill_td_path():
-    return str((HILL_DENSITY_ROOT / "td_final.txt").resolve())
+    return str(Path(get_default_hill_td_cache_path()).resolve())

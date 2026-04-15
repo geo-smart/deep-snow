@@ -21,9 +21,22 @@ from rasterio.errors import NotGeoreferencedWarning
 from rioxarray.merge import merge_arrays
 from shapely.geometry import shape
 from deep_snow.errors import EmptyAcquisitionError, TransientAcquisitionError
-from deep_snow.inputs import get_default_fcf_cache_path, get_default_snodas_cache_dir
+from deep_snow.inputs import (
+    get_default_fcf_cache_path,
+    get_default_hill_pptwt_cache_path,
+    get_default_hill_td_cache_path,
+    get_default_snodas_cache_dir,
+)
 
 SENTINEL1_DESCENDING_PASS_HOUR_UTC_GT = 11
+DEFAULT_HILL_PPTWT_URL = os.environ.get(
+    "DEEP_SNOW_HILL_PPTWT_URL",
+    "https://github.com/geo-smart/deep-snow-data/releases/download/v0.1.0/ppt_wt_final.txt",
+)
+DEFAULT_HILL_TD_URL = os.environ.get(
+    "DEEP_SNOW_HILL_TD_URL",
+    "https://github.com/geo-smart/deep-snow-data/releases/download/v0.1.0/td_final.txt",
+)
 
 
 def date_range(date_str, padding):
@@ -194,6 +207,33 @@ def ensure_fcf_file(fcf_path=None):
     resolved_path.parent.mkdir(parents=True, exist_ok=True)
     download_fcf(str(resolved_path))
     return str(resolved_path)
+
+
+def download_hill_pptwt(out_fp):
+    url_download(DEFAULT_HILL_PPTWT_URL, out_fp)
+
+
+def download_hill_td(out_fp):
+    url_download(DEFAULT_HILL_TD_URL, out_fp)
+
+
+def ensure_hill_file(path, downloader):
+    resolved_path = Path(path)
+    resolved_path.parent.mkdir(parents=True, exist_ok=True)
+    downloader(str(resolved_path))
+    return str(resolved_path)
+
+
+def ensure_hill_inputs(pptwt_path=None, td_path=None):
+    resolved_pptwt_path = ensure_hill_file(
+        pptwt_path or get_default_hill_pptwt_cache_path(),
+        download_hill_pptwt,
+    )
+    resolved_td_path = ensure_hill_file(
+        td_path or get_default_hill_td_cache_path(),
+        download_hill_td,
+    )
+    return resolved_pptwt_path, resolved_td_path
 
 
 def get_snodas_cache_dir():

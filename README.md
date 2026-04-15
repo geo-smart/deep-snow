@@ -72,13 +72,9 @@ See [docs/local-prediction.md](docs/local-prediction.md) for details.
 <img src="imgs/test_prediction_zoom_v0_lowres.png" width="100%">
 
 ## Documentation
-- [docs/getting-started.md](docs/getting-started.md): first-time setup and navigation
-- [docs/choose-a-workflow.md](docs/choose-a-workflow.md): when to use local runs versus GitHub Actions
 - [docs/scientific-context.md](docs/scientific-context.md): data sources, model formulation, resolution, validation domain, and limitations
 - [docs/github-actions.md](docs/github-actions.md): running batch workflows in GitHub
 - [docs/local-prediction.md](docs/local-prediction.md): local CLI and Python usage
-- [docs/inputs-and-outputs.md](docs/inputs-and-outputs.md): required inputs, generated files, and outputs
-- [docs/troubleshooting.md](docs/troubleshooting.md): common failure modes and what to check
 
 ## Data
 

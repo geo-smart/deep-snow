@@ -28,12 +28,11 @@ def undo_norm(tensor, minmax_list):
     return original
 
 def db_scale(x, epsilon=1e-10):
-    # Add epsilon only where x is zero
-    x_with_epsilon = np.where(x==0, epsilon, x)
-    # Calculate the logarithm
-    log_x = 10 * np.log10(x_with_epsilon)
-    # Set the areas where x was originally zero back to zero
-    log_x[x==0] = 0
+    x = np.asarray(x)
+    valid_mask = x > 0
+    log_x = np.zeros_like(x, dtype=float)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        log_x[valid_mask] = 10 * np.log10(np.where(valid_mask, x, epsilon)[valid_mask])
     return log_x
 
 def create_grid(aoi, grid_size_km=100, output_shapefile='aoi_grid.shp'):

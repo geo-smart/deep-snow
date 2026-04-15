@@ -109,3 +109,35 @@ venv.bak/
 *.hdf5
 *.nc
 *.tif
+
+# Local project outputs and large data products
+CO_application_v0.ai
+data/ASO/
+data/CO_application_tiles/
+data/application_tiles/
+data/cache/
+data/info/
+data/tiles/
+data/tmp/
+data/*.zip
+figs/test_predictions_all/
+manuscript_figs/
+mapping/
+
+# Generated polygon layers while keeping tracked Natural Earth land inputs
+data/polygons/*
+!data/polygons/ne_50m_land.README.html
+!data/polygons/ne_50m_land.VERSION.txt
+!data/polygons/ne_50m_land.cpg
+!data/polygons/ne_50m_land.dbf
+!data/polygons/ne_50m_land.prj
+!data/polygons/ne_50m_land.shp
+!data/polygons/ne_50m_land.shx
+!data/polygons/ne_50m_land.zip
+
+# Local exploratory notebooks not meant for version control
+notebooks/dataset_prep/acquisition_time_differences.ipynb
+notebooks/dataset_prep/predict_previous_date.ipynb
+notebooks/dataset_prep/test_tiles.ipynb
+notebooks/dataset_prep/total_snow-covered_area.ipynb
+notebooks/exploration/explore_tiles.ipynb

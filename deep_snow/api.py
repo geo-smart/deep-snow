@@ -19,7 +19,19 @@ __all__ = [
     "predict_snow_depth_time_series",
     "print_prediction_summary",
     "read_prediction_input_provenance",
+    "resolve_api_models",
 ]
+
+
+def resolve_api_models(use_ensemble, model_path=None, model_paths_list=None):
+    """Compatibility wrapper for older API-level model resolution tests and callers."""
+    from deep_snow.workflows import resolve_prediction_models
+
+    return resolve_prediction_models(
+        use_ensemble=use_ensemble,
+        model_path=model_path,
+        model_paths_list=model_paths_list,
+    )
 
 
 def build_prediction_summary(

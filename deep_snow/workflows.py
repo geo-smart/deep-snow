@@ -180,7 +180,11 @@ class _TeeStream(io.TextIOBase):
 
     def flush(self):
         for stream in self._streams:
-            stream.flush()
+            try:
+                stream.flush()
+            except ValueError:
+                # Pytest capture can close redirected streams during teardown.
+                continue
 
 
 @contextlib.contextmanager
@@ -194,6 +198,7 @@ def _prediction_log_capture(*, enabled, log_path):
     with log_path.open("w", encoding="utf-8") as log_file:
         tee = _TeeStream(log_file, sys.stdout)
         with contextlib.redirect_stdout(tee):
+            print(f"[predict] writing run log to {log_path}")
             yield
 
 
@@ -422,13 +427,13 @@ def _predict_single_tile(
             )
             if use_ensemble:
                 ds = apply_model_ensemble(
-                    out_dir=out_dir,
-                    out_name=out_name,
-                    crs=crs,
-                    write_tif=write_tif,
-                    model_paths_list=model_paths_list,
-                    delete_inputs=delete_inputs,
-                    out_crs=out_crs,
+                    crs,
+                    model_paths_list,
+                    out_dir,
+                    out_name,
+                    write_tif,
+                    delete_inputs,
+                    out_crs,
                     gpu=gpu,
                     predict_swe=predict_swe,
                     hill_pptwt_path=hill_pptwt_path,
@@ -472,13 +477,13 @@ def _predict_single_tile(
                 return ds
 
             ds = apply_model(
-                out_dir=out_dir,
-                out_name=out_name,
-                crs=crs,
-                write_tif=write_tif,
-                model_path=model_path,
-                delete_inputs=delete_inputs,
-                out_crs=out_crs,
+                crs,
+                model_path,
+                out_dir,
+                out_name,
+                write_tif,
+                delete_inputs,
+                out_crs,
                 gpu=gpu,
                 predict_swe=predict_swe,
                 hill_pptwt_path=hill_pptwt_path,

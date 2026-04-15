@@ -1,7 +1,8 @@
-from datetime import datetime, timedelta
-import json
 import argparse
 import os
+
+from deep_snow.tiling import build_matrix_json
+from deep_snow.workflows import build_time_series_jobs
 
 def get_parser():
     parser = argparse.ArgumentParser(description="find dates for snow depth prediction")
@@ -10,49 +11,20 @@ def get_parser():
     parser.add_argument("snow_off_day", type=str, help="snow-off month and day (perhaps late summer) with format mmdd")
     return parser
 
-def generate_dates(target_date_str, start_date_str):
-    target_date = datetime.strptime(target_date_str, "%Y%m%d")
-    start_date = datetime.strptime(start_date_str, "%Y%m%d")
-    date_list = []
-
-    while target_date >= start_date:
-        date_list.append(target_date.strftime("%Y%m%d"))
-        target_date -= timedelta(days=12)
-
-    return date_list
-
-def most_recent_occurrence(date_str: str, mmdd: str) -> str:
-    """
-    Given a reference date and a month-day string (MMDD),
-    returns the most recent occurrence of that month-day before the given date.
-    
-    :param date_str: The reference date in YYYYMMDD format.
-    :param mmdd: The target month and day in MMDD format.
-    :return: The most recent occurrence of MMDD before the reference date in YYYYMMDD format.
-    """
-    ref_date = datetime.strptime(date_str, "%Y%m%d")
-    target_date = datetime(ref_date.year, int(mmdd[:2]), int(mmdd[2:]))
-    
-    if target_date >= ref_date:
-        target_date = target_date.replace(year=ref_date.year - 1)
-    
-    return target_date.strftime("%Y%m%d")
-
 def main():
     parser = get_parser()
     args = parser.parse_args()
 
-    date_list = generate_dates(args.end_date, args.begin_date)
-
-    # set up matrix job
-    date_list_matrix = []
-    for date in date_list:
-        snow_off_date = most_recent_occurrence(date, args.snow_off_day)
-        date_list_matrix.append({'target_date':date, 'snow_off_date':snow_off_date})
-    matrixJSON = f'{{"include":{json.dumps(date_list_matrix)}}}'
-    print(f'number of dates: {len(date_list_matrix)}')
-    with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-        print(f'MATRIX_PARAMS_COMBINATIONS={matrixJSON}', file=f)
+    date_list_matrix = build_time_series_jobs(args.begin_date, args.end_date, args.snow_off_day)
+    matrixJSON = build_matrix_json(date_list_matrix)
+    print(f"Prepared {len(date_list_matrix)} time-series date job(s).")
+    github_output = os.environ.get("GITHUB_OUTPUT")
+    if github_output:
+        with open(github_output, 'a') as f:
+            print(f'MATRIX_PARAMS_COMBINATIONS={matrixJSON}', file=f)
+            print(f'DATE_COUNT={len(date_list_matrix)}', file=f)
+    else:
+        print(matrixJSON)
 
 if __name__ == "__main__":
    main()

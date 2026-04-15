@@ -1,6 +1,9 @@
 # predict snow depth for a single tile
 name: predict_tile_sd
-run-name: ${{ inputs.workflow_name }}
+run-name: tile snow depth ${{ inputs.target_date }}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 on:
   workflow_dispatch:
@@ -8,33 +11,61 @@ on:
         target_date:
             type: string
             required: true
-            description: target date for snow depths with format yyyymmdd
-            default: '20220101'
+            description: Target date in YYYYmmdd format.
+            default: '20240320'
         snow_off_date:
             type: string
             required: true
-            description: snow-off date (perhaps previous late summer) with format YYYYmmdd
-            default: '20210901'
+            description: Snow-off reference date in YYYYmmdd format, often a late-summer date from the previous year.
+            default: '20230910'
         aoi:
             type: string
             required: true
-            description: area of interest in format 'minlon minlat maxlon maxlat'
-            default: '-108.20 37.55 -107.61 38.09'
+            description: Bounding box in format 'minlon minlat maxlon maxlat'.
+            default: '-108.20 37.55 -108.00 37.75'
         cloud_cover:
             type: string
             required: true
-            description: percent cloud cover allowed in images (0-100)
-            default: '100'
+            description: Maximum allowed Sentinel-2 cloud cover percentage.
+            default: '25'
+        selection_strategy:
+            type: choice
+            required: false
+            description: Acquisition selection strategy for both Sentinel-1 and Sentinel-2.
+            default: 'composite'
+            options:
+            - 'composite'
+            - 'nearest_usable'
+        s1_orbit_selection:
+            type: choice
+            required: false
+            description: Sentinel-1 orbit selection.
+            default: 'descending'
+            options:
+            - 'descending'
+            - 'all'
+        clip_aoi:
+            type: string
+            required: false
+            description: Optional output crop bounding box in format 'minlon minlat maxlon maxlat'.
         use_ensemble:
             type: choice
             required: true
-            description: whether to use model ensemble
-            default: 'True'
+            description: Use the current ensemble defaults instead of the recommended single model.
+            default: 'False'
             options:
-            - 'True'
             - 'False'
+            - 'True'
+        predict_swe:
+            type: choice
+            required: false
+            description: Also derive snow density and SWE from predicted depth.
+            default: 'False'
+            options:
+            - 'False'
+            - 'True'
         workflow_name:
-            description: 'Custom workflow name'
+            description: Custom label for the run and artifact.
             required: false
             default: 'predict_tile_sd'
             type: string
@@ -43,21 +74,33 @@ on:
     inputs:
         target_date:
             type: string
-            description: target date for snow depths with format yyyymmdd
+            description: Target date in YYYYmmdd format.
         snow_off_date:
             type: string
-            description: snow-off date (perhaps previous late summer) with format YYYYmmdd
+            description: Snow-off reference date in YYYYmmdd format.
         aoi:
             type: string
-            description: area of interest in format 'minlon minlat maxlon maxlat'
+            description: Bounding box in format 'minlon minlat maxlon maxlat'.
         cloud_cover:
             type: string
-            description: percent cloud cover allowed in images (0-100)
+            description: Maximum allowed Sentinel-2 cloud cover percentage.
+        selection_strategy:
+            type: string
+            description: Acquisition selection strategy for both Sentinel-1 and Sentinel-2.
+        s1_orbit_selection:
+            type: string
+            description: Sentinel-1 orbit selection.
+        clip_aoi:
+            type: string
+            description: Optional output crop bounding box in format 'minlon minlat maxlon maxlat'.
         use_ensemble:
             type: string
-            description: whether to use model ensemble (True or False)
+            description: Whether to use model ensemble (True or False).
+        predict_swe:
+            type: string
+            description: Whether to also derive snow density and SWE (True or False).
         workflow_name:
-            description: 'Custom workflow name'
+            description: Custom label for the run and artifact.
             type: string
 jobs:
     predict_tile_sd:
@@ -69,10 +112,10 @@ jobs:
 
         steps:
             - name: Checkout Repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
 
             - name: Install Conda environment with Micromamba
-              uses: mamba-org/setup-micromamba@v2
+              uses: mamba-org/setup-micromamba@v3
               with:
                 cache-environment: true
                 environment-file: environment.yml
@@ -83,11 +126,20 @@ jobs:
 
             - name: Download Data and Predict Snow Depth
               run: |
-                python -u scripts/actions/predict_tile_sd.py ${{ inputs.target_date }} ${{ inputs.snow_off_date }} "${{ inputs.aoi }}" ${{ inputs.cloud_cover }} ${{ inputs.use_ensemble }}
+                if [ -n "${{ inputs.clip_aoi }}" ]; then
+                  python -u scripts/actions/predict_tile_sd.py ${{ inputs.target_date }} ${{ inputs.snow_off_date }} "${{ inputs.aoi }}" ${{ inputs.cloud_cover }} ${{ inputs.use_ensemble }} --s1-orbit-selection ${{ inputs.s1_orbit_selection }} --selection-strategy ${{ inputs.selection_strategy }} --predict-swe ${{ inputs.predict_swe }} --clip-aoi "${{ inputs.clip_aoi }}"
+                else
+                  python -u scripts/actions/predict_tile_sd.py ${{ inputs.target_date }} ${{ inputs.snow_off_date }} "${{ inputs.aoi }}" ${{ inputs.cloud_cover }} ${{ inputs.use_ensemble }} --s1-orbit-selection ${{ inputs.s1_orbit_selection }} --selection-strategy ${{ inputs.selection_strategy }} --predict-swe ${{ inputs.predict_swe }}
+                fi
 
             - name: Upload Snow Depth Map as Artifact
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v6
               with:
-                name: ${{ inputs.workflow_name }}
+                name: ${{ inputs.workflow_name }}-snow-depth
                 path: |
                     data/*_sd.tif
+                    data/*_swe.tif
+                    data/*_density.tif
+                    data/*_input_gaps.tif
+                    data/*_input_gaps.nc
+                if-no-files-found: error

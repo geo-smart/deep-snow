@@ -1,90 +1,106 @@
 # deep-snow
-### Machine learning models for remote sensing snow depth retrieval
+
+[![CI](https://github.com/geo-smart/deep-snow/actions/workflows/ci.yml/badge.svg)](https://github.com/geo-smart/deep-snow/actions/workflows/ci.yml)
+
+Machine learning tools for predicting snow depth from remote sensing data.
 
 ## Overview
-Seasonal snow provides drinking water for billions, but current global measurements of snow depth lack adequate spatial and temporal resolution for effective resource management--especially in mountainous terrain. This project is focused on training machine learning models to predict snow depth from satellite remote sensing data and accurate airborne lidar snow depth measurements. For more information, see our ["background" notebook](notebooks/background/background.ipynb). 
 
-During the 2023 GeoSMART Hackweek and the 2024 NASA Earth Sciences and UW Hackweek, the deep-snow teams trained convolutional neural networks to predict snow depth. A manuscript describing this work is in preparation. This repo contains code related to that effort as well as tools to predict snow depth from remote sensing imagery using our trained machine learning models. 
+`deep-snow` provides models and workflows to estimate snow depth from Sentinel-1, Sentinel-2, SNODAS, terrain, and forest-cover inputs.
 
-<img src="imgs/tuolumne_test_v0_lowres.png" width="500">
+The focus is on a simple, reproducible pipeline that can be run locally or via GitHub Actions. For model details and evaluation, see [Brencher et al., 2026](https://doi.org/10.2139/ssrn.6557436).
 
-## Github Actions usage
-We have set up Github Actions so that users can generate snow depth maps with no coding required! First, fork this repository. 
-### Generating snow depth maps for a single date:
-- Under the *Actions* tab, click on the `batch_predict_sd` workflow.
-- Select the *Run workflow* dropdown and supply the required information, then click the green *Run workflow* button
-- The resulting snow depth maps will be preserved as Github Artifacts which can be downloaded. Where the area of interest is large, the workflow will output multiple 1x1-degree tiles.
-### Generating a time series of snow depth maps
-- Under the *Actions* tab, click on the `batch_sd_timeseries` workflow.
-- Select the *Run workflow* dropdown and supply the required information, then click the green *Run workflow* button
-- This workflow will generate snow depth maps every 12 days over the user-specified date range. 
-- The resulting snow depth maps will be preserved as Github Artifacts which can be downloaded. Where the area of interest is large, the workflow will output multiple 1x1-degree tiles. 
-For more advanced usage, see the following:
+<img src="imgs/tuolumne_test_v0_lowres.png" width="50%">
 
-## Installation
-1) Download and install Miniconda 
+## Choose Your Workflow
 
-2) Set up Mamba
-```
-$ conda install mamba -n base -c conda-forge
-```
-3) Clone the repo and set up the environment
-```
-$ git clone https://github.com/geo-smart/deep-snow.git
-$ cd ./deep-snow
-$ mamba env create -f environment.yml
-$ conda activate deep-snow
-```
-4) Install the package locally
-```
-$ pip install -e .
+There are two main ways to use `deep-snow`. Use GitHub Actions for quick runs or large batch jobs with minimal setup. Use a local install if you want to develop, debug, or build custom workflows with the CLI or Python API.
+
+## Quickstart
+
+### Option 1: GitHub Actions
+
+Fork the repo and run workflows from the Actions tab:
+
+- `batch_predict_sd`: generate one snow-depth map for a target date over an area of interest
+- `batch_sd_timeseries`: generate a time series of snow-depth maps over a date range
+
+See [docs/github-actions.md](docs/github-actions.md) for details.
+
+### Option 2: Local install
+
+```bash
+git clone https://github.com/geo-smart/deep-snow.git
+cd deep-snow
+conda install mamba -n base -c conda-forge
+mamba env create -f environment.yml
+conda activate deep-snow
+pip install -e .
 ```
 
-## Example usage
-See also ["apply_model_full.ipynb"](notebooks/application/apply_model_full.ipynb)
-```
-from deep_snow.application import predict_sd
+Make a prediction using the CLI:
 
-# set up arguments 
-aoi = {'minlon':-108.1239, 'minlat':37.6393, 'maxlon':-107.5878, 'maxlat':38.0641} # San Juans, CO
-target_date = '20240320'
-snowoff_date = '20230910'
-model_path = '../../weights/quinn_ResDepth_v10_256epochs' # Current latest model
-out_dir = '../../data/application'
-
-# predict snow depth
-ds = predict_sd(aoi=aoi, target_date=target_date, snowoff_date=snowoff_date, model_path=model_path, out_dir=out_dir)
+```bash
+deep-snow predict-sd 20240320 20230910 "-108.20 37.55 -108.00 37.75" 25
 ```
+
+Add `--predict-swe True` if you also want Hill-model SWE and density outputs alongside depth.
+
+Or make a prediction using the Python API:
+
+```python
+from deep_snow import predict_sd
+
+aoi = {
+    "minlon": -108.20,
+    "minlat": 37.55,
+    "maxlon": -108.00,
+    "maxlat": 37.75,
+}
+
+ds = predict_sd(
+    aoi=aoi,
+    target_date="20240320",
+    snowoff_date="20230910",
+    out_dir="data/application",
+    predict_swe=True,
+)
+```
+
+See [docs/local-prediction.md](docs/local-prediction.md) for details.
+
+<img src="imgs/test_prediction_zoom_v0_lowres.png" width="100%">
+
+## Documentation
+- [docs/scientific-context.md](docs/scientific-context.md): data sources, model formulation, resolution, validation domain, and limitations
+- [docs/github-actions.md](docs/github-actions.md): running batch workflows in GitHub
+- [docs/local-prediction.md](docs/local-prediction.md): local CLI and Python usage
 
 ## Data
-Our training dataset includes:
-- Sentinel-1 RTC backscatter data (snow on and snow off)
-- Sentinel-2 imagery (snow on)
+
+The model uses the following as inputs:
+
+- Sentinel-1 RTC backscatter data (snow-on and snow-off)
+- Sentinel-2 imagery (snow-on)
+- SNODAS snow depth
 - Fractional forest cover
 - COP30 digital elevation model
-- Airborne Snow Observatory (ASO) lidar snow depth maps
 
-Snow-on Sentinel-1 and 2 data were collected nearby in time to corresponding ASO acquistions. All products were reprojected to the appropriate UTM zone and resampled to a matching 50 m grid. Products were divided up spatially into training, testing, and validation tiles and subset to produce a machine-learning ready dataset. 
+Sentinel-1 and Sentinel-2 inputs are selected close in time to the target date. Inputs are co-registered to a common grid and assembled into model-ready datasets. Airborne Snow Observatory lidar snow depth maps are used for training and evaluation, but not for inference. 
 
-<img src="imgs/inputs_v0.png" width="500">
+<img src="imgs/inputs_v0.png" width="70%">
 
 ## Contributing
 
-Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are greatly appreciated.
-
-If you have a suggestion that would make this project better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement". 
-
-1. Fork the Project
-2. Create your Feature Branch (git checkout -b feature/AmazingFeature)
-3. Commit your Changes (git commit -m 'Add some AmazingFeature')
-4. Push to the Branch (git push origin feature/AmazingFeature)
-5. Open a Pull Request
+Contributions are welcome!
 
 ## Collaborators
-* Quinn Brencher, gbrench@uw.edu
-* Eric Gagliano, egagli@uw.edu
+
+- Quinn Brencher, gbrench@uw.edu
+- Eric Gagliano, egagli@uw.edu
 
 2023 GeoSMART Hackweek team:
+
 - Bareera Mirza
 - Ibrahim Alabi
 - Dawn URycki
@@ -101,6 +117,7 @@ If you have a suggestion that would make this project better, please fork the re
 - Abner Bogan (Helper)
 
 2024 NASA Earth Sciences and UW Hackweek team:
+
 - Ekaterina (Katya) Bashkova
 - Manda Chasteen
 - Sarah Kilpatrick
@@ -109,19 +126,27 @@ If you have a suggestion that would make this project better, please fork the re
 - Shashank Bhushan (Helper)
 - Adrian Marziliano (Helper)
 
-## Additional resources or background reading
-- [spicy-snow background](https://github.com/SnowEx/spicy-snow/blob/main/contrib/brencher/tutorial/01background.ipynb)
-- [spicy-snow paper](https://egusphere.copernicus.org/preprints/2024/egusphere-2024-1018/egusphere-2024-1018.pdf)
-- [Lievens et al. (2022) paper](https://tc.copernicus.org/articles/16/159/2022/) 
-- [SAR basics](https://asf.alaska.edu/information/sar-information/what-is-sar/)
-- [More SAR basics](https://www.earthdata.nasa.gov/learn/backgrounders/what-is-sar)
-- [Sentinel-1 SAR](https://sentinels.copernicus.eu/web/sentinel/user-guides/sentinel-1-sar)
-- [More on ASF HyP3 RTC](https://hyp3-docs.asf.alaska.edu/guides/rtc_product_guide/)
-- [SAR theory from 2022 UNAVCO InSAR class (more advanced)](https://nbviewer.org/github/parosen/Geo-SInC/blob/main/UNAVCO2022/0.8_SAR_Theory_Phenomenology/SAR.ipynb)
+## Citation
+George Brencher, Eric Gagliano, Taylor Ganz, Dawn URycki, Taryn Black, Mansa Krishna, Manda Chasteen, Isabella Chittumuri, Zachary Hoppinen, wrosenbluth, Yen-Yi Wu, nshobert, kudelllopez, Ibrahim O Alabi, fadjimaina, Shashank Bhushan, Hui, Handsome Jacky Chen, Bareera Mirza, … Abner Bogan. (2026). geo-smart/deep-snow: v0.1.0 (v0.1.0). Zenodo. https://doi.org/10.5281/zenodo.18968780
+
+## Additional Resources
+
+- [Background notebook](notebooks/background/background.ipynb)
+- [Spicy-snow tutorial background](https://github.com/SnowEx/spicy-snow/blob/main/contrib/brencher/tutorial/01background.ipynb)
+- [Spicy-snow paper](https://egusphere.copernicus.org/preprints/2024/egusphere-2024-1018/egusphere-2024-1018.pdf)
+- [Lievens et al. (2022)](https://tc.copernicus.org/articles/16/159/2022/)
+- [What is SAR? (ASF)](https://asf.alaska.edu/information/sar-information/what-is-sar/)
+- [What is SAR? (NASA Earthdata)](https://www.earthdata.nasa.gov/learn/backgrounders/what-is-sar)
+- [Sentinel-1 SAR user guide](https://sentinels.copernicus.eu/web/sentinel/user-guides/sentinel-1-sar)
+- [ASF HyP3 RTC product guide](https://hyp3-docs.asf.alaska.edu/guides/rtc_product_guide/)
 
 ## Acknowledgements
-We used code, text, inspiration from the following projects
+
+This project draws on code, ideas, and inspiration from:
+
 - https://github.com/SnowEx/spicy-snow
 - https://github.com/relativeorbit/fufiters
 - https://github.com/spestana/goes-ortho-builder
 - https://github.com/uwescience/GitHubActionsTutorial-USRSE24
+
+<img src="imgs/WUS_20250313_v3_lowres.png" width="70%">

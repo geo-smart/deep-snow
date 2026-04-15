@@ -1,6 +1,9 @@
 # Batch predict snow depth over many tiles
 name: batch_predict_sd
-run-name: predict sd ${{ inputs.target_date }}
+run-name: batch snow depth ${{ inputs.target_date }}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 on:
   workflow_dispatch:
@@ -8,72 +11,126 @@ on:
         target_date:
             type: string
             required: true
-            description: target date for snow depths with format yyyymmdd
-            default: '20220101'
+            description: Target date in YYYYmmdd format.
+            default: '20240320'
         snow_off_date:
             type: string
             required: true
-            description: snow-off date (perhaps previous late summer) with format YYYYmmdd
-            default: '20210901'
+            description: Snow-off reference date in YYYYmmdd format, often a late-summer date from the previous year.
+            default: '20230910'
         aoi:
             type: string
             required: true
-            description: area of interest in format 'minlon minlat maxlon maxlat'
-            default: '-108.20 37.55 -107.61 38.09'
+            description: Bounding box in format 'minlon minlat maxlon maxlat'.
+            default: '-108.20 37.55 -108.00 37.75'
         cloud_cover:
             type: string
             required: true
-            description: percent cloud cover allowed in images (0-100)
-            default: '100'
+            description: Maximum allowed Sentinel-2 cloud cover percentage.
+            default: '25'
+        selection_strategy:
+            type: choice
+            required: false
+            description: Acquisition selection strategy for both Sentinel-1 and Sentinel-2.
+            default: 'composite'
+            options:
+            - 'composite'
+            - 'nearest_usable'
+        s1_orbit_selection:
+            type: choice
+            required: false
+            description: Sentinel-1 orbit selection.
+            default: 'descending'
+            options:
+            - 'descending'
+            - 'all'
         use_ensemble:
             type: choice
             required: true
-            description: whether to use model ensemble
-            default: 'True'
+            description: Use the current ensemble defaults instead of the recommended single model.
+            default: 'False'
             options:
-            - 'True'
             - 'False'
+            - 'True'
+        predict_swe:
+            type: choice
+            required: false
+            description: Also derive snow density and SWE from predicted depth.
+            default: 'False'
+            options:
+            - 'False'
+            - 'True'
   
   workflow_call:
     inputs:
         target_date:
             type: string
-            description: target date for snow depths with format yyyymmdd
+            description: Target date in YYYYmmdd format.
         snow_off_date:
             type: string
-            description: snow-off date (perhaps previous late summer) with format YYYYmmdd
+            description: Snow-off reference date in YYYYmmdd format.
         aoi:
             type: string
-            description: area of interest in format 'minlon minlat maxlon maxlat'
+            description: Bounding box in format 'minlon minlat maxlon maxlat'.
         cloud_cover:
             type: string
-            description: percent cloud cover allowed in images (0-100)
+            description: Maximum allowed Sentinel-2 cloud cover percentage.
+        selection_strategy:
+            type: string
+            description: Acquisition selection strategy for both Sentinel-1 and Sentinel-2.
+        s1_orbit_selection:
+            type: string
+            description: Sentinel-1 orbit selection.
         use_ensemble:
             type: string
-            description: whether to use model ensemble (True or False)
+            description: Whether to use model ensemble (True or False).
+        predict_swe:
+            type: string
+            description: Whether to also derive snow density and SWE (True or False).
 jobs:
   # The output of this job is a JSON mapping for a matrix job
   prep_tiles:
     runs-on: ubuntu-latest
     outputs:
       MATRIX: ${{ steps.prep_tiles.outputs.MATRIX_PARAMS_COMBINATIONS }}
+      TILE_COUNT: ${{ steps.prep_tiles.outputs.TILE_COUNT }}
     defaults:
       run:
         shell: bash -el {0}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Conda environment with Micromamba
-        uses: mamba-org/setup-micromamba@v2
+        uses: mamba-org/setup-micromamba@v3
         with:
           cache-environment: true
           environment-file: environment.yml
+
+      - name: Install deep-snow
+        run: |
+          pip install .
 
       - name: Prepare tiles over area of interest
         id: prep_tiles
         run: | 
           python -u scripts/actions/prep_tiles.py ${{ inputs.target_date }} "${{ inputs.aoi }}"
+
+      - name: Summarize Tile Preparation
+        run: |
+          {
+            echo "## Batch Snow Depth Request"
+            echo ""
+            echo "- Target date: \`${{ inputs.target_date }}\`"
+            echo "- Snow-off date: \`${{ inputs.snow_off_date }}\`"
+            echo "- AOI: \`${{ inputs.aoi }}\`"
+            echo "- Cloud cover threshold: \`${{ inputs.cloud_cover }}\`"
+            echo "- Sentinel-1 orbit selection: \`${{ inputs.s1_orbit_selection }}\`"
+            echo "- Acquisition selection strategy: \`${{ inputs.selection_strategy }}\`"
+            echo "- Use ensemble: \`${{ inputs.use_ensemble }}\`"
+            echo "- Predict SWE and density: \`${{ inputs.predict_swe }}\`"
+            echo "- Tile count: \`${{ steps.prep_tiles.outputs.TILE_COUNT }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
   # A matrix job that calls a reuseable workflow
   predict_tile_sd:
     needs: prep_tiles
@@ -86,6 +143,10 @@ jobs:
       target_date: ${{ inputs.target_date }}
       snow_off_date: ${{ inputs.snow_off_date }} 
       aoi: ${{ matrix.aoi }}
+      clip_aoi: ${{ matrix.clip_aoi }}
       cloud_cover: ${{ inputs.cloud_cover }}
+      selection_strategy: ${{ inputs.selection_strategy }}
+      s1_orbit_selection: ${{ inputs.s1_orbit_selection }}
       use_ensemble: ${{ inputs.use_ensemble }}
+      predict_swe: ${{ inputs.predict_swe }}
       workflow_name: ${{ matrix.name }}

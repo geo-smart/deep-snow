@@ -54,6 +54,14 @@ def _log_detail(message):
     print(f"  - {message}")
 
 
+def _display_path(path):
+    path_obj = Path(path)
+    try:
+        return path_obj.resolve().relative_to(Path.cwd().resolve()).as_posix()
+    except ValueError:
+        return path_obj.as_posix()
+
+
 def _reproject_match_quietly(dataset, match_ds, *, resampling):
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=NotGeoreferencedWarning)
@@ -180,10 +188,10 @@ def _select_acquisitions(ds, *, target_date, selection_strategy):
 
 def url_download(url, out_fp, overwrite=False):
     if not os.path.exists(out_fp) or overwrite:
-        _log_detail(f"downloading {Path(out_fp).name}")
+        _log_detail(f"downloading {_display_path(out_fp)}")
         urlretrieve(url, out_fp)
     else:
-        _log_detail(f"using cached file: {out_fp}")
+        _log_detail(f"using cached file: {_display_path(out_fp)}")
 
 
 def url_download_with_retries(url, out_fp, overwrite=False, max_retries=3, retry_delay=2):
@@ -225,6 +233,7 @@ def ensure_hill_file(path, downloader):
 
 
 def ensure_hill_inputs(pptwt_path=None, td_path=None):
+    _log_stage("Hill SWE support rasters")
     resolved_pptwt_path = ensure_hill_file(
         pptwt_path or get_default_hill_pptwt_cache_path(),
         download_hill_pptwt,
@@ -462,6 +471,9 @@ def acquire_prediction_inputs(
     buffer_period,
     cloud_cover,
     fcf_path=None,
+    predict_swe=False,
+    hill_pptwt_path=None,
+    hill_td_path=None,
     sentinel1_orbit_selection="descending",
     selection_strategy="composite",
 ):
@@ -506,6 +518,8 @@ def acquire_prediction_inputs(
     snodas_ds, snodas_metadata = load_snodas_dataset(target_date, snowon_s1_ds)
     cop30_ds, cop30_metadata = load_cop30_dataset(stac, aoi_geometry, snowon_s1_ds)
     fcf_ds, fcf_metadata = load_fcf_dataset(fcf_path, aoi_gdf.total_bounds, snowon_s1_ds)
+    if predict_swe:
+        hill_pptwt_path, hill_td_path = ensure_hill_inputs(hill_pptwt_path, hill_td_path)
 
     return {
         "snowon_s1": snowon_s1_ds,
@@ -526,4 +540,6 @@ def acquire_prediction_inputs(
         "selection_strategy": selection_strategy,
         "target_date": target_date,
         "snowoff_date": snowoff_date,
+        "hill_pptwt_path": hill_pptwt_path,
+        "hill_td_path": hill_td_path,
     }

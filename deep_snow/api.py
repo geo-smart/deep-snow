@@ -160,10 +160,12 @@ def print_prediction_summary(summary):
         f"aoi={summary['aoi']['minlon']} {summary['aoi']['minlat']} "
         f"{summary['aoi']['maxlon']} {summary['aoi']['maxlat']}"
     )
+    print()
     if summary["model_path"] is not None:
         print(f"  model: {Path(summary['model_path']).name}")
     else:
         print(f"  model: ensemble ({summary['model_count']} models)")
+    print()
     print(
         "  output: "
         f"crs={summary['out_crs']} | "
@@ -178,6 +180,7 @@ def print_prediction_summary(summary):
     if summary.get("predicted_density_tif_path") is not None:
         print(f"         density={summary['predicted_density_tif_path']}")
     print(f"         inputs={summary['model_inputs_path']}")
+    print()
     attempted_buffer_periods = summary.get("attempted_buffer_periods") or []
     if attempted_buffer_periods:
         if len(attempted_buffer_periods) == 1:
@@ -188,6 +191,7 @@ def print_prediction_summary(summary):
                 f"expanded from {attempted_buffer_periods[0]} to {attempted_buffer_periods[-1]} days "
                 f"after trying {attempted_buffer_periods}"
             )
+        print()
     if summary.get("input_gap_pixel_count") is not None:
         print(
             "  gaps: "
@@ -207,6 +211,7 @@ def print_prediction_summary(summary):
             detailed_gap_parts.append(f"S2 {summary['gap_s2_fraction']:.2%}")
         if detailed_gap_parts:
             print(f"        breakdown={', '.join(detailed_gap_parts)}")
+        print()
     if summary.get("tiled_aoi"):
         print(
             "  tiling: "
@@ -218,6 +223,7 @@ def print_prediction_summary(summary):
                 "          "
                 f"requested crs overridden {requested_out_crs} -> {summary['out_crs']}"
             )
+        print()
     if summary["input_provenance"] is not None:
         snowon = summary["input_provenance"].get("sentinel1_snowon", {})
         snowoff = summary["input_provenance"].get("sentinel1_snowoff", {})
@@ -251,6 +257,9 @@ def download_data(
     out_dir,
     cloud_cover,
     fcf_path=None,
+    predict_swe=False,
+    hill_pptwt_path=None,
+    hill_td_path=None,
     sentinel1_orbit_selection="descending",
     selection_strategy="composite",
 ):
@@ -265,6 +274,9 @@ def download_data(
         buffer_period=buffer_period,
         cloud_cover=cloud_cover,
         fcf_path=fcf_path,
+        predict_swe=predict_swe,
+        hill_pptwt_path=hill_pptwt_path,
+        hill_td_path=hill_td_path,
         sentinel1_orbit_selection=sentinel1_orbit_selection,
         selection_strategy=selection_strategy,
     )

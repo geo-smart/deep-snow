@@ -376,16 +376,12 @@ def _predict_single_tile(
         print_prediction_summary,
         read_prediction_input_provenance,
     )
-    from deep_snow.acquisition import ensure_hill_inputs
-
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     if validate_inputs:
         validate_prediction_dates(target_date, snow_off_date)
         validate_prediction_aoi(aoi)
     summary_aoi = crop_aoi or aoi
     out_name = out_name or build_output_name(target_date, summary_aoi)
-    if predict_swe:
-        hill_pptwt_path, hill_td_path = ensure_hill_inputs(hill_pptwt_path, hill_td_path)
     model_path, model_paths_list = resolve_prediction_models(
         use_ensemble=use_ensemble,
         model_path=model_path,
@@ -412,6 +408,9 @@ def _predict_single_tile(
                 out_dir=out_dir,
                 cloud_cover=float(cloud_cover),
                 fcf_path=fcf_path,
+                predict_swe=predict_swe,
+                hill_pptwt_path=hill_pptwt_path,
+                hill_td_path=hill_td_path,
                 sentinel1_orbit_selection=sentinel1_orbit_selection,
                 selection_strategy=selection_strategy,
             )

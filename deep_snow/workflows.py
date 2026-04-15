@@ -196,9 +196,10 @@ def _prediction_log_capture(*, enabled, log_path):
     log_path = Path(log_path)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("w", encoding="utf-8") as log_file:
+        log_file.write(f"[predict] writing run log to {log_path}\n")
+        log_file.flush()
         tee = _TeeStream(log_file, sys.stdout)
         with contextlib.redirect_stdout(tee):
-            print(f"[predict] writing run log to {log_path}")
             yield
 
 

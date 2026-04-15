@@ -6,8 +6,9 @@ import time
 import warnings
 from datetime import datetime, timedelta
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from urllib.error import HTTPError, URLError
-from urllib.request import urlretrieve
+from urllib.request import Request, urlopen
 
 import geopandas as gpd
 import numpy as np
@@ -20,7 +21,7 @@ import rioxarray as rxr
 from rasterio.errors import NotGeoreferencedWarning
 from rioxarray.merge import merge_arrays
 from shapely.geometry import shape
-from deep_snow.errors import EmptyAcquisitionError, TransientAcquisitionError
+from deep_snow.errors import AcquisitionError, EmptyAcquisitionError, TransientAcquisitionError
 from deep_snow.inputs import (
     get_default_fcf_cache_path,
     get_default_hill_pptwt_cache_path,
@@ -37,6 +38,10 @@ DEFAULT_HILL_TD_URL = os.environ.get(
     "DEEP_SNOW_HILL_TD_URL",
     "https://github.com/geo-smart/deep-snow-data/releases/download/v0.1.0/td_final.txt",
 )
+DEFAULT_DOWNLOAD_TIMEOUT_SECONDS = float(os.environ.get("DEEP_SNOW_DOWNLOAD_TIMEOUT_SECONDS", "120"))
+DEFAULT_DOWNLOAD_USER_AGENT = os.environ.get("DEEP_SNOW_DOWNLOAD_USER_AGENT", "deep-snow/0.1")
+DEFAULT_SNODAS_DOWNLOAD_RETRIES = int(os.environ.get("DEEP_SNOW_SNODAS_DOWNLOAD_RETRIES", "5"))
+DEFAULT_SNODAS_RETRY_DELAY_SECONDS = float(os.environ.get("DEEP_SNOW_SNODAS_RETRY_DELAY_SECONDS", "5"))
 
 
 def date_range(date_str, padding):
@@ -189,7 +194,14 @@ def _select_acquisitions(ds, *, target_date, selection_strategy):
 def url_download(url, out_fp, overwrite=False):
     if not os.path.exists(out_fp) or overwrite:
         _log_detail(f"downloading {_display_path(out_fp)}")
-        urlretrieve(url, out_fp)
+        request = Request(url, headers={"User-Agent": DEFAULT_DOWNLOAD_USER_AGENT})
+        out_path = Path(out_fp)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        with urlopen(request, timeout=DEFAULT_DOWNLOAD_TIMEOUT_SECONDS) as response:
+            with NamedTemporaryFile(delete=False, dir=str(out_path.parent), suffix=".part") as tmp_file:
+                shutil.copyfileobj(response, tmp_file)
+                tmp_name = tmp_file.name
+        os.replace(tmp_name, out_fp)
     else:
         _log_detail(f"using cached file: {_display_path(out_fp)}")
 
@@ -415,8 +427,21 @@ def load_snodas_dataset(target_date, match_ds):
     if snodas_fn.exists() and snodas_fn.stat().st_size > 0:
         _log_detail(f"using cached SNODAS archive for {target_date}")
     else:
-        url_download_with_retries(snodas_url, str(snodas_fn), overwrite=True)
-        _log_detail(f"downloaded SNODAS archive for {target_date}")
+        try:
+            url_download_with_retries(
+                snodas_url,
+                str(snodas_fn),
+                overwrite=True,
+                max_retries=DEFAULT_SNODAS_DOWNLOAD_RETRIES,
+                retry_delay=DEFAULT_SNODAS_RETRY_DELAY_SECONDS,
+            )
+            _log_detail(f"downloaded SNODAS archive for {target_date}")
+        except (HTTPError, URLError, TimeoutError, ConnectionError) as exc:
+            raise AcquisitionError(
+                "SNODAS download failed after repeated retries. "
+                "This usually indicates a remote-host or network issue rather than a problem "
+                "with Sentinel acquisition selection."
+            ) from exc
     extract_tar_archive(snodas_fn, snodas_cache_dir)
     decompress_gzip_files(snodas_cache_dir)
     snodas_txt_paths = sorted(snodas_cache_dir.glob("us_ssmv11036*.txt"))

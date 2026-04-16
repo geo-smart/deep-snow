@@ -274,6 +274,8 @@ def download_data(
     hill_td_path=None,
     sentinel1_orbit_selection="descending",
     selection_strategy="composite",
+    max_buffer_expansions=3,
+    buffer_expansion_step_days=2,
 ):
     from deep_snow.acquisition import acquire_prediction_inputs
     from deep_snow.preprocessing import build_prediction_dataset, write_model_inputs
@@ -291,6 +293,8 @@ def download_data(
         hill_td_path=hill_td_path,
         sentinel1_orbit_selection=sentinel1_orbit_selection,
         selection_strategy=selection_strategy,
+        max_buffer_expansions=max_buffer_expansions,
+        buffer_expansion_step_days=buffer_expansion_step_days,
     )
     ds = build_prediction_dataset(
         raw_inputs,

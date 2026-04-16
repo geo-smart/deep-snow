@@ -43,6 +43,8 @@ DEFAULT_DOWNLOAD_TIMEOUT_SECONDS = float(os.environ.get("DEEP_SNOW_DOWNLOAD_TIME
 DEFAULT_DOWNLOAD_USER_AGENT = os.environ.get("DEEP_SNOW_DOWNLOAD_USER_AGENT", "deep-snow/0.1")
 DEFAULT_SNODAS_DOWNLOAD_RETRIES = int(os.environ.get("DEEP_SNOW_SNODAS_DOWNLOAD_RETRIES", "5"))
 DEFAULT_SNODAS_RETRY_DELAY_SECONDS = float(os.environ.get("DEEP_SNOW_SNODAS_RETRY_DELAY_SECONDS", "5"))
+DEFAULT_MAX_BUFFER_EXPANSIONS = 3
+DEFAULT_BUFFER_EXPANSION_STEP_DAYS = 2
 
 
 def date_range(date_str, padding):
@@ -158,6 +160,10 @@ def _compute_single_acquisition(ds, idx):
     return ds.isel(time=int(idx)).squeeze().compute()
 
 
+def _compute_lazy_composite(ds):
+    return ds.median(dim="time").squeeze().compute()
+
+
 def _compute_usable_acquisitions(ds, ordered_indexes):
     usable_datasets = []
     usable_times = []
@@ -185,10 +191,61 @@ def _compute_usable_acquisitions(ds, ordered_indexes):
     return usable_datasets, usable_times, skipped_times
 
 
+def _load_with_buffer_expansion(
+    *,
+    stage_title,
+    load_fn,
+    initial_buffer_period,
+    max_buffer_expansions=DEFAULT_MAX_BUFFER_EXPANSIONS,
+    buffer_expansion_step_days=DEFAULT_BUFFER_EXPANSION_STEP_DAYS,
+):
+    current_buffer_period = initial_buffer_period
+    attempted_buffer_periods = [initial_buffer_period]
+    buffer_expansions = 0
+
+    while True:
+        try:
+            _log_stage(stage_title)
+            ds, metadata = load_fn(current_buffer_period)
+            metadata = dict(metadata)
+            metadata["initial_buffer_period_days"] = initial_buffer_period
+            metadata["attempted_buffer_period_days"] = list(attempted_buffer_periods)
+            metadata["final_buffer_period_days"] = current_buffer_period
+            metadata["buffer_expansion_count"] = buffer_expansions
+            return ds, metadata
+        except EmptyAcquisitionError as exc:
+            if buffer_expansions >= max_buffer_expansions:
+                raise EmptyAcquisitionError(
+                    f"{exc} Failed after attempting buffer periods {attempted_buffer_periods}."
+                ) from exc
+
+            next_buffer_period = current_buffer_period + buffer_expansion_step_days
+            print(
+                "WARNING: "
+                f"{type(exc).__name__} encountered while loading {stage_title} "
+                f"with buffer_period={current_buffer_period}: {exc}. "
+                f"Expanding buffer_period to {next_buffer_period} days "
+                f"({buffer_expansions + 1}/{max_buffer_expansions}) and retrying only {stage_title}..."
+            )
+            current_buffer_period = next_buffer_period
+            attempted_buffer_periods.append(current_buffer_period)
+            buffer_expansions += 1
+
+
 def _select_acquisitions(ds, *, target_date, selection_strategy):
     time_values = pd.to_datetime(ds.time.values)
 
     if selection_strategy == "composite":
+        usable_times = _serialize_time_values(time_values)
+        try:
+            selected_ds = _compute_lazy_composite(ds)
+            return selected_ds, usable_times, _get_valid_pixel_fraction(selected_ds)
+        except Exception as exc:
+            _log_detail(
+                "lazy composite failed; retrying acquisition-by-acquisition "
+                f"to skip unreadable scenes ({exc.__class__.__name__})"
+            )
+
         usable_datasets, usable_times, skipped_times = _compute_usable_acquisitions(
             ds,
             np.arange(len(time_values)),
@@ -545,44 +602,61 @@ def acquire_prediction_inputs(
     hill_td_path=None,
     sentinel1_orbit_selection="descending",
     selection_strategy="composite",
+    max_buffer_expansions=DEFAULT_MAX_BUFFER_EXPANSIONS,
+    buffer_expansion_step_days=DEFAULT_BUFFER_EXPANSION_STEP_DAYS,
 ):
     aoi_geometry = build_aoi_geometry(aoi)
     aoi_gdf = build_aoi_geodataframe(aoi)
     crs = aoi_gdf.estimate_utm_crs()
     stac = create_stac_client()
 
-    _log_stage("Sentinel-1 snow-on")
-    snowon_s1_ds, snowon_s1_metadata = load_sentinel1_dataset(
-        stac,
-        aoi_geometry,
-        date_range(target_date, buffer_period),
-        target_date=target_date,
-        crs=crs,
-        bbox=aoi_gdf.total_bounds,
-        rename_map={"vv": "snowon_vv", "vh": "snowon_vh"},
-        orbit_selection=sentinel1_orbit_selection,
-        selection_strategy=selection_strategy,
+    snowon_s1_ds, snowon_s1_metadata = _load_with_buffer_expansion(
+        stage_title="Sentinel-1 snow-on",
+        initial_buffer_period=buffer_period,
+        max_buffer_expansions=max_buffer_expansions,
+        buffer_expansion_step_days=buffer_expansion_step_days,
+        load_fn=lambda current_buffer_period: load_sentinel1_dataset(
+            stac,
+            aoi_geometry,
+            date_range(target_date, current_buffer_period),
+            target_date=target_date,
+            crs=crs,
+            bbox=aoi_gdf.total_bounds,
+            rename_map={"vv": "snowon_vv", "vh": "snowon_vh"},
+            orbit_selection=sentinel1_orbit_selection,
+            selection_strategy=selection_strategy,
+        ),
     )
-    _log_stage("Sentinel-1 snow-off")
-    snowoff_s1_ds, snowoff_s1_metadata = load_sentinel1_dataset(
-        stac,
-        aoi_geometry,
-        date_range(snowoff_date, buffer_period),
-        target_date=snowoff_date,
-        like=snowon_s1_ds,
-        rename_map={"vv": "snowoff_vv", "vh": "snowoff_vh"},
-        orbit_selection=sentinel1_orbit_selection,
-        selection_strategy=selection_strategy,
+    snowoff_s1_ds, snowoff_s1_metadata = _load_with_buffer_expansion(
+        stage_title="Sentinel-1 snow-off",
+        initial_buffer_period=buffer_period,
+        max_buffer_expansions=max_buffer_expansions,
+        buffer_expansion_step_days=buffer_expansion_step_days,
+        load_fn=lambda current_buffer_period: load_sentinel1_dataset(
+            stac,
+            aoi_geometry,
+            date_range(snowoff_date, current_buffer_period),
+            target_date=snowoff_date,
+            like=snowon_s1_ds,
+            rename_map={"vv": "snowoff_vv", "vh": "snowoff_vh"},
+            orbit_selection=sentinel1_orbit_selection,
+            selection_strategy=selection_strategy,
+        ),
     )
-    _log_stage("Sentinel-2 snow-on")
-    s2_ds, s2_metadata = load_sentinel2_dataset(
-        stac,
-        aoi_geometry,
-        date_range(target_date, buffer_period),
-        cloud_cover=cloud_cover,
-        like=snowon_s1_ds,
-        target_date=target_date,
-        selection_strategy=selection_strategy,
+    s2_ds, s2_metadata = _load_with_buffer_expansion(
+        stage_title="Sentinel-2 snow-on",
+        initial_buffer_period=buffer_period,
+        max_buffer_expansions=max_buffer_expansions,
+        buffer_expansion_step_days=buffer_expansion_step_days,
+        load_fn=lambda current_buffer_period: load_sentinel2_dataset(
+            stac,
+            aoi_geometry,
+            date_range(target_date, current_buffer_period),
+            cloud_cover=cloud_cover,
+            like=snowon_s1_ds,
+            target_date=target_date,
+            selection_strategy=selection_strategy,
+        ),
     )
     snodas_ds, snodas_metadata = load_snodas_dataset(target_date, snowon_s1_ds)
     cop30_ds, cop30_metadata = load_cop30_dataset(stac, aoi_geometry, snowon_s1_ds)

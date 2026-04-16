@@ -149,10 +149,13 @@ def _augment_input_provenance_with_retry_history(
         return None
 
     input_provenance = dict(input_provenance)
-    input_provenance["initial_buffer_period_days"] = initial_buffer_period
-    input_provenance["attempted_buffer_period_days"] = list(attempted_buffer_periods)
-    input_provenance["final_buffer_period_days"] = final_buffer_period
-    input_provenance["buffer_expansion_count"] = max(0, len(attempted_buffer_periods) - 1)
+    input_provenance.setdefault("initial_buffer_period_days", initial_buffer_period)
+    input_provenance.setdefault("attempted_buffer_period_days", list(attempted_buffer_periods))
+    input_provenance.setdefault("final_buffer_period_days", final_buffer_period)
+    input_provenance["buffer_expansion_count"] = max(
+        0,
+        len(input_provenance.get("attempted_buffer_period_days", [])) - 1,
+    )
     return input_provenance
 
 
@@ -402,7 +405,6 @@ def _predict_single_tile(
     current_buffer_period = buffer_period
     attempted_buffer_periods = [buffer_period]
     transient_attempt = 0
-    buffer_expansions = 0
 
     while True:
         try:
@@ -419,6 +421,8 @@ def _predict_single_tile(
                 hill_td_path=hill_td_path,
                 sentinel1_orbit_selection=sentinel1_orbit_selection,
                 selection_strategy=selection_strategy,
+                max_buffer_expansions=max_buffer_expansions,
+                buffer_expansion_step_days=buffer_expansion_step_days,
             )
             input_provenance = _augment_input_provenance_with_retry_history(
                 read_prediction_input_provenance(out_dir),
@@ -426,6 +430,22 @@ def _predict_single_tile(
                 attempted_buffer_periods=attempted_buffer_periods,
                 final_buffer_period=current_buffer_period,
             )
+            summary_initial_buffer_period = initial_buffer_period
+            summary_attempted_buffer_periods = attempted_buffer_periods
+            summary_buffer_period = current_buffer_period
+            if input_provenance is not None:
+                summary_initial_buffer_period = input_provenance.get(
+                    "initial_buffer_period_days",
+                    summary_initial_buffer_period,
+                )
+                summary_attempted_buffer_periods = input_provenance.get(
+                    "attempted_buffer_period_days",
+                    summary_attempted_buffer_periods,
+                )
+                summary_buffer_period = input_provenance.get(
+                    "final_buffer_period_days",
+                    summary_buffer_period,
+                )
             if use_ensemble:
                 ds = apply_model_ensemble(
                     crs,
@@ -455,7 +475,7 @@ def _predict_single_tile(
                     out_name=out_name,
                     out_crs=out_crs,
                     cloud_cover=float(cloud_cover),
-                    buffer_period=current_buffer_period,
+                    buffer_period=summary_buffer_period,
                     gpu=gpu,
                     use_ensemble=True,
                     model_paths_list=model_paths_list,
@@ -465,8 +485,8 @@ def _predict_single_tile(
                     input_provenance=input_provenance,
                     sentinel1_orbit_selection=sentinel1_orbit_selection,
                     selection_strategy=selection_strategy,
-                    initial_buffer_period=initial_buffer_period,
-                    attempted_buffer_periods=attempted_buffer_periods,
+                    initial_buffer_period=summary_initial_buffer_period,
+                    attempted_buffer_periods=summary_attempted_buffer_periods,
                     predict_swe=predict_swe,
                     predicted_swe_tif_path=ds.attrs.get("deep_snow_predicted_swe_tif_path"),
                     predicted_density_tif_path=ds.attrs.get("deep_snow_predicted_density_tif_path"),
@@ -505,7 +525,7 @@ def _predict_single_tile(
                 out_name=out_name,
                 out_crs=out_crs,
                 cloud_cover=float(cloud_cover),
-                buffer_period=current_buffer_period,
+                buffer_period=summary_buffer_period,
                 gpu=gpu,
                 use_ensemble=False,
                 model_path=model_path,
@@ -515,8 +535,8 @@ def _predict_single_tile(
                 input_provenance=input_provenance,
                 sentinel1_orbit_selection=sentinel1_orbit_selection,
                 selection_strategy=selection_strategy,
-                initial_buffer_period=initial_buffer_period,
-                attempted_buffer_periods=attempted_buffer_periods,
+                initial_buffer_period=summary_initial_buffer_period,
+                attempted_buffer_periods=summary_attempted_buffer_periods,
                 predict_swe=predict_swe,
                 predicted_swe_tif_path=ds.attrs.get("deep_snow_predicted_swe_tif_path"),
                 predicted_density_tif_path=ds.attrs.get("deep_snow_predicted_density_tif_path"),
@@ -527,22 +547,7 @@ def _predict_single_tile(
                 print_prediction_summary(summary)
             return ds
         except EmptyAcquisitionError as exc:
-            if buffer_expansions < max_buffer_expansions:
-                next_buffer_period = current_buffer_period + buffer_expansion_step_days
-                print(
-                    "WARNING: "
-                    f"{type(exc).__name__} encountered with buffer_period={current_buffer_period}: {exc}. "
-                    f"Expanding buffer_period to {next_buffer_period} days "
-                    f"({buffer_expansions + 1}/{max_buffer_expansions}) and retrying..."
-                )
-                current_buffer_period = next_buffer_period
-                attempted_buffer_periods.append(current_buffer_period)
-                buffer_expansions += 1
-                transient_attempt = 0
-                continue
-            raise EmptyAcquisitionError(
-                f"{exc} Failed after attempting buffer periods {attempted_buffer_periods}."
-            ) from exc
+            raise exc
         except (TransientAcquisitionError, HTTPError, URLError, TimeoutError, ConnectionError) as exc:
             transient_attempt += 1
             print(f"Transient failure on attempt {transient_attempt}/{max_retries}: {exc}")

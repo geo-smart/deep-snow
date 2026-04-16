@@ -63,10 +63,14 @@ def add_dowy_feature(ds, target_date):
 
 def add_terrain_features(ds):
     elevation = ds["elevation"].squeeze()
+    elevation_nodata = elevation.rio.nodata
+    if elevation_nodata is None and np.any(~np.isfinite(elevation.values)):
+        elevation_nodata = np.nan
     dem = xdem.DEM.from_array(
         elevation.values,
         transform=elevation.rio.transform(),
         crs=elevation.rio.crs,
+        nodata=elevation_nodata,
     )
     ds["aspect"] = (("y", "x"), xdem.terrain.aspect(dem).data.data)
     ds["northness"] = np.cos(np.deg2rad(ds.aspect))

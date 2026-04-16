@@ -196,47 +196,27 @@ class WorkflowRoutingTests(unittest.TestCase):
         self.assertIs(result, fake_ds)
         mock_tiled.assert_not_called()
 
-    def test_predict_tile_warns_and_expands_buffer_period_for_empty_acquisition(self):
-        fake_ds = type("FakeDataset", (), {"attrs": {}})()
-
+    def test_predict_tile_does_not_globally_retry_after_empty_acquisition(self):
         with patch("deep_snow.workflows.validate_prediction_dates"):
             with patch("deep_snow.workflows.validate_prediction_aoi"):
                 with patch(
                     "deep_snow.api.download_data",
-                    side_effect=[
-                        workflows.EmptyAcquisitionError("No Sentinel-2 items found."),
-                        "EPSG:32612",
-                    ],
+                    side_effect=workflows.EmptyAcquisitionError("No Sentinel-2 items found."),
                 ) as mock_download:
-                    with patch("deep_snow.api.read_prediction_input_provenance", return_value={}) as mock_read_provenance:
-                        with patch("deep_snow.api.apply_model", return_value=fake_ds):
-                            with patch("deep_snow.api.attach_prediction_metadata", side_effect=lambda ds, summary: ds):
-                                with patch("deep_snow.api.build_prediction_summary", side_effect=lambda **kwargs: kwargs) as mock_summary:
-                                    with patch("builtins.print") as mock_print:
-                                        result = workflows.predict_tile(
-                                            target_date="20240320",
-                                            snow_off_date="20230910",
-                                            aoi={"minlon": -108.2, "minlat": 37.55, "maxlon": -108.0, "maxlat": 37.75},
-                                            cloud_cover=25,
-                                            use_ensemble=False,
-                                            emit_summary=False,
-                                            max_buffer_expansions=2,
-                                            buffer_expansion_step_days=2,
-                                        )
+                    with self.assertRaises(workflows.EmptyAcquisitionError):
+                        workflows.predict_tile(
+                            target_date="20240320",
+                            snow_off_date="20230910",
+                            aoi={"minlon": -108.2, "minlat": 37.55, "maxlon": -108.0, "maxlat": 37.75},
+                            cloud_cover=25,
+                            use_ensemble=False,
+                            emit_summary=False,
+                            max_buffer_expansions=2,
+                            buffer_expansion_step_days=2,
+                        )
 
-        self.assertIs(result, fake_ds)
-        self.assertEqual(mock_download.call_count, 2)
-        self.assertEqual(mock_download.call_args_list[0].kwargs["buffer_period"], 6)
-        self.assertEqual(mock_download.call_args_list[1].kwargs["buffer_period"], 8)
-        self.assertEqual(
-            mock_summary.call_args.kwargs["attempted_buffer_periods"],
-            [6, 8],
-        )
-        self.assertEqual(mock_summary.call_args.kwargs["initial_buffer_period"], 6)
-        printed = "\n".join(str(call.args[0]) for call in mock_print.call_args_list if call.args)
-        self.assertIn("WARNING:", printed)
-        self.assertIn("Expanding buffer_period to 8 days", printed)
-        mock_read_provenance.assert_called_once()
+        self.assertEqual(mock_download.call_count, 1)
+        self.assertEqual(mock_download.call_args.kwargs["buffer_period"], 6)
 
     def test_predict_tile_stops_after_transient_retry_cap(self):
         with patch("deep_snow.workflows.validate_prediction_dates"):

@@ -179,6 +179,10 @@ class _TeeStream(io.TextIOBase):
     def write(self, data):
         for stream in self._streams:
             stream.write(data)
+            try:
+                stream.flush()
+            except ValueError:
+                continue
         return len(data)
 
     def flush(self):

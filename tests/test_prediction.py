@@ -146,6 +146,58 @@ class PredictionHelpersTests(unittest.TestCase):
 
         self.assertTrue(torch.equal(pred, inputs[0, 0]))
 
+    def test_validate_model_inputs_rejects_nonfinite_values(self):
+        inputs = torch.ones((1, 2, 3, 4), dtype=torch.float32)
+        inputs[:, 1, 0, 0] = torch.nan
+
+        with self.assertRaises(ValueError) as exc:
+            prediction.validate_model_inputs(inputs, input_channels=["blue", "ndsi"])
+
+        self.assertIn("ndsi", str(exc.exception))
+
+    def test_log_model_input_summary_reports_grid_and_gap_fractions(self):
+        inputs = torch.ones((1, 3, 5, 7), dtype=torch.float32)
+        fake_ds = type(
+            "FakeDataset",
+            (),
+            {
+                "attrs": {
+                    "deep_snow_input_gap_fraction": 0.25,
+                    "deep_snow_gap_s1_snowon_fraction": 0.10,
+                    "deep_snow_gap_s1_snowoff_fraction": 0.05,
+                    "deep_snow_gap_s2_fraction": 0.40,
+                }
+            },
+        )()
+
+        with patch("builtins.print") as mock_print:
+            prediction.log_model_input_summary(fake_ds, inputs, input_channels=["a", "b", "c"])
+
+        printed = "\n".join(str(call.args[0]) for call in mock_print.call_args_list if call.args)
+        self.assertIn("grid=5x7", printed)
+        self.assertIn("S2=40.00%", printed)
+
+    def test_predict_in_tiles_logs_per_tile_progress(self):
+        class EchoModel:
+            def __call__(self, tile_inputs):
+                return tile_inputs[:, :1]
+
+        inputs = torch.arange(1, 1 + (5 * 7), dtype=torch.float32).reshape(1, 1, 5, 7)
+
+        with patch("builtins.print") as mock_print:
+            prediction.predict_in_tiles(
+                inputs=inputs,
+                models=[EchoModel()],
+                tile_size=4,
+                padding=1,
+                gpu=False,
+            )
+
+        printed = "\n".join(str(call.args[0]) for call in mock_print.call_args_list if call.args)
+        self.assertIn("running tiled inference: 12 model tile(s)", printed)
+        self.assertIn("inference tile 1/12", printed)
+        self.assertIn("finished inference tile 12/12", printed)
+
 
 @unittest.skipIf(apply_model is None or apply_model_ensemble is None, "application runtime not available")
 class ApplicationWrapperTests(unittest.TestCase):

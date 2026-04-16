@@ -1,5 +1,6 @@
 import math
 import os
+import time
 from pathlib import Path
 
 import numpy as np
@@ -135,6 +136,38 @@ def build_model_inputs(ds, input_channels=None):
     return torch.cat([feature_dict[channel] for channel in channels], dim=1)
 
 
+def log_model_input_summary(ds, inputs, input_channels=None):
+    channels = input_channels or get_prediction_input_channels()
+    height = int(inputs.shape[-2])
+    width = int(inputs.shape[-1])
+    print(
+        "[predict] model inputs ready: "
+        f"channels={len(channels)} | grid={height}x{width} | pixels={height * width}"
+    )
+    if "deep_snow_input_gap_fraction" in ds.attrs:
+        print(
+            "[predict] input gap summary: "
+            f"combined={ds.attrs.get('deep_snow_input_gap_fraction', 0.0):.2%} | "
+            f"S1 snow-on={ds.attrs.get('deep_snow_gap_s1_snowon_fraction', 0.0):.2%} | "
+            f"S1 snow-off={ds.attrs.get('deep_snow_gap_s1_snowoff_fraction', 0.0):.2%} | "
+            f"S2={ds.attrs.get('deep_snow_gap_s2_fraction', 0.0):.2%}"
+        )
+
+
+def validate_model_inputs(inputs, input_channels=None):
+    channels = input_channels or get_prediction_input_channels()
+    nonfinite_mask = ~torch.isfinite(inputs)
+    if not bool(nonfinite_mask.any()):
+        return
+
+    bad_channel_indexes = torch.nonzero(nonfinite_mask.any(dim=(0, 2, 3)), as_tuple=False).flatten().tolist()
+    bad_channels = [channels[index] for index in bad_channel_indexes]
+    raise ValueError(
+        "Model inputs contain non-finite values after preprocessing for channel(s): "
+        f"{', '.join(bad_channels)}."
+    )
+
+
 def load_resdepth_models(model_paths, gpu, checkpoint_loader, input_channels=None):
     channels = input_channels or get_prediction_input_channels()
     models = []
@@ -181,17 +214,38 @@ def predict_in_tiles(inputs, models, tile_size=MODEL_TILE_SIZE, padding=MODEL_TI
     stride = tile_size - 2 * padding
     inputs_pad = F.pad(inputs, (0, tile_size, 0, tile_size), "constant", 0)
     pred_pad = torch.empty_like(inputs_pad[0, 0, :, :])
+    tile_count_x = math.ceil(inputs.shape[-1] / stride)
+    tile_count_y = math.ceil(inputs.shape[-2] / stride)
+    total_tiles = tile_count_x * tile_count_y
 
+    print(
+        "[predict] running tiled inference: "
+        f"{total_tiles} model tile(s) | tile_size={tile_size} | padding={padding} | stride={stride}"
+    )
+
+    tile_number = 0
     for x_index in range(math.ceil(inputs.shape[-1] / stride)):
         for y_index in range(math.ceil(inputs.shape[-2] / stride)):
+            tile_number += 1
             ymin = y_index * stride
             xmin = x_index * stride
+            tile_start = time.perf_counter()
+            print(
+                "[predict] inference tile "
+                f"{tile_number}/{total_tiles}: x={x_index + 1}/{tile_count_x}, "
+                f"y={y_index + 1}/{tile_count_y}, window=rows {ymin}:{ymin + tile_size}, "
+                f"cols {xmin}:{xmin + tile_size}"
+            )
             tile_prediction = _predict_tile(
                 models,
                 inputs_pad[:, :, ymin : ymin + tile_size, xmin : xmin + tile_size],
                 gpu=gpu,
             )
             _write_tile_prediction(pred_pad, tile_prediction, ymin, xmin, tile_size, padding)
+            print(
+                f"[predict] finished inference tile {tile_number}/{total_tiles} "
+                f"in {time.perf_counter() - tile_start:.2f}s"
+            )
 
     return pred_pad[: inputs.shape[-2], : inputs.shape[-1]]
 
@@ -370,15 +424,16 @@ def apply_models(
 ):
     data_fn = str(Path(out_dir) / "model_inputs.nc")
     ds = load_prediction_dataset(out_dir)
-    print(f"[predict] preparing {len(model_paths)} model(s) for inference")
     inputs = build_model_inputs(ds)
+    validate_model_inputs(inputs, input_channels=get_prediction_input_channels())
+    log_model_input_summary(ds, inputs, input_channels=get_prediction_input_channels())
+    print(f"[predict] preparing {len(model_paths)} model(s) for inference")
     models = load_resdepth_models(
         model_paths,
         gpu=gpu,
         checkpoint_loader=checkpoint_loader,
         input_channels=get_prediction_input_channels(),
     )
-    print("[predict] running tiled inference")
     pred_sd = predict_in_tiles(inputs, models, gpu=gpu)
     return finalize_prediction_dataset(
         ds=ds,

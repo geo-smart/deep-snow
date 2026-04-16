@@ -18,6 +18,7 @@ import planetary_computer
 import pystac_client
 import rasterio as rio
 import rioxarray as rxr
+import xarray as xr
 from rasterio.errors import NotGeoreferencedWarning
 from rioxarray.merge import merge_arrays
 from shapely.geometry import shape
@@ -153,12 +154,53 @@ def _get_valid_pixel_fraction(ds):
     return float(ds[reference_var].notnull().mean().item())
 
 
+def _compute_single_acquisition(ds, idx):
+    return ds.isel(time=int(idx)).squeeze().compute()
+
+
+def _compute_usable_acquisitions(ds, ordered_indexes):
+    usable_datasets = []
+    usable_times = []
+    skipped_times = []
+
+    time_values = pd.to_datetime(ds.time.values)
+    for idx in ordered_indexes:
+        candidate_time = pd.Timestamp(time_values[int(idx)]).isoformat()
+        try:
+            candidate = _compute_single_acquisition(ds, idx)
+        except AssertionError as exc:
+            # Some upstream STAC assets can fail deep inside odc-stac/rasterio with
+            # missing CRS metadata. Skip those acquisitions instead of failing the
+            # whole request when other usable scenes are available.
+            skipped_times.append(candidate_time)
+            _log_detail(
+                "skipping acquisition with invalid georeferencing metadata: "
+                f"{candidate_time} ({exc.__class__.__name__})"
+            )
+            continue
+
+        usable_times.append(candidate_time)
+        usable_datasets.append(candidate)
+
+    return usable_datasets, usable_times, skipped_times
+
+
 def _select_acquisitions(ds, *, target_date, selection_strategy):
     time_values = pd.to_datetime(ds.time.values)
 
     if selection_strategy == "composite":
-        selected_ds = ds.median(dim="time").squeeze().compute()
-        return selected_ds, _serialize_time_values(ds.time.values), _get_valid_pixel_fraction(selected_ds)
+        usable_datasets, usable_times, skipped_times = _compute_usable_acquisitions(
+            ds,
+            np.arange(len(time_values)),
+        )
+        if not usable_datasets:
+            raise EmptyAcquisitionError(
+                "Acquisitions were found, but none could be read successfully after masking."
+            )
+        if skipped_times:
+            _log_detail(f"skipped unreadable acquisitions: {_format_time_summary(skipped_times)}")
+        selected_ds = xr.concat(usable_datasets, dim="time").median(dim="time").squeeze()
+        return selected_ds, usable_times, _get_valid_pixel_fraction(selected_ds)
 
     if selection_strategy != "nearest_usable":
         raise ValueError(
@@ -169,13 +211,15 @@ def _select_acquisitions(ds, *, target_date, selection_strategy):
     sorted_indexes = np.argsort(np.abs(time_values - target_timestamp))
     selected_ds = None
     selected_times = []
+    usable_datasets, usable_times, skipped_times = _compute_usable_acquisitions(ds, sorted_indexes)
+    if skipped_times:
+        _log_detail(f"skipped unreadable acquisitions: {_format_time_summary(skipped_times)}")
 
-    for idx in sorted_indexes:
-        candidate = ds.isel(time=int(idx)).squeeze().compute()
+    for candidate, candidate_time in zip(usable_datasets, usable_times):
         candidate_valid_fraction = _get_valid_pixel_fraction(candidate)
         if candidate_valid_fraction == 0:
             continue
-        selected_times.append(pd.Timestamp(time_values[int(idx)]).isoformat())
+        selected_times.append(candidate_time)
         if selected_ds is None:
             selected_ds = candidate
         else:

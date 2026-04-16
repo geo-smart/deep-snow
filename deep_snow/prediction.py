@@ -293,21 +293,29 @@ def add_density_and_swe(
     if "dowy" not in ds:
         raise ValueError("dowy must be present before deriving SWE and density.")
 
+    print(f"[predict] opening Hill precipitation-weight raster: {Path(pptwt_path).as_posix()}")
     depth = ds["predicted_sd"]
     pptwt = rioxarray.open_rasterio(pptwt_path).squeeze("band", drop=True).rio.write_crs("EPSG:4326")
+    print(f"[predict] opening Hill temperature-difference raster: {Path(td_path).as_posix()}")
     td = rioxarray.open_rasterio(td_path).squeeze("band", drop=True).rio.write_crs("EPSG:4326")
 
+    print("[predict] reprojecting Hill precipitation-weight raster to prediction grid")
     pptwt = pptwt.rio.reproject_match(depth)
+    print("[predict] finished reprojecting Hill precipitation-weight raster")
+    print("[predict] reprojecting Hill temperature-difference raster to prediction grid")
     td = td.rio.reproject_match(depth)
+    print("[predict] finished reprojecting Hill temperature-difference raster")
 
     valid_observation = depth.notnull()
     snow_present = valid_observation & (depth > 0)
+    print("[predict] computing Hill SWE from predicted depth")
     swe_mm = _hill_swe(
         depth.where(snow_present),
         pptwt.where(snow_present),
         td.where(snow_present),
         ds["dowy"].where(snow_present),
     )
+    print("[predict] converting Hill SWE to SWE and density outputs")
     swe_m = (swe_mm / 1000.0).where(snow_present, 0).where(valid_observation)
     density = xr.where(snow_present, (swe_m / depth) * 1000.0, 0).where(valid_observation)
 
@@ -348,25 +356,37 @@ def finalize_prediction_dataset(
     crop_bounds=None,
     crop_crs=None,
 ):
+    print("[predict] finalizing prediction dataset")
+    print("[predict] converting model output to predicted snow depth grid")
     pred_sd = undo_norm(pred_sd, norm_dict["aso_sd"])
     ds["predicted_sd"] = (("y", "x"), pred_sd.cpu().numpy().astype(np.float32))
     ds["predicted_sd"] = ds["predicted_sd"].where(ds["predicted_sd"] > 0, 0)
     ds["predicted_sd"] = _write_float_nodata(ds["predicted_sd"])
+    print("[predict] attaching source CRS to prediction dataset")
     ds = ds.rio.write_crs(crs)
 
     if out_crs == "wgs84":
+        print("[predict] reprojecting prediction dataset to EPSG:4326")
         ds = ds.rio.reproject("EPSG:4326")
         ds = ds.rio.write_crs("EPSG:4326")
+        print("[predict] finished reprojection to EPSG:4326")
 
     if crop_bounds is not None:
+        print(
+            "[predict] clipping prediction dataset to requested bounds: "
+            f"{crop_bounds[0]} {crop_bounds[1]} {crop_bounds[2]} {crop_bounds[3]}"
+        )
         ds = ds.rio.clip_box(*crop_bounds, crs=crop_crs)
+        print("[predict] finished clipping prediction dataset")
 
     if predict_swe:
+        print("[predict] deriving snow density and SWE from predicted depth")
         ds = add_density_and_swe(
             ds,
             pptwt_path=hill_pptwt_path,
             td_path=hill_td_path,
         )
+        print("[predict] finished deriving snow density and SWE")
 
     if write_tif:
         output_path = f"{out_dir}/{out_name}_sd.tif"

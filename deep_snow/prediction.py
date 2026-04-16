@@ -139,24 +139,6 @@ def build_model_inputs(ds, input_channels=None):
     return torch.cat([feature_dict[channel] for channel in channels], dim=1)
 
 
-def log_model_input_summary(ds, inputs, input_channels=None):
-    channels = input_channels or get_prediction_input_channels()
-    height = int(inputs.shape[-2])
-    width = int(inputs.shape[-1])
-    print(
-        "[predict] model inputs ready: "
-        f"channels={len(channels)} | grid={height}x{width} | pixels={height * width}"
-    )
-    if "deep_snow_input_gap_fraction" in ds.attrs:
-        print(
-            "[predict] input gap summary: "
-            f"combined={ds.attrs.get('deep_snow_input_gap_fraction', 0.0):.2%} | "
-            f"S1 snow-on={ds.attrs.get('deep_snow_gap_s1_snowon_fraction', 0.0):.2%} | "
-            f"S1 snow-off={ds.attrs.get('deep_snow_gap_s1_snowoff_fraction', 0.0):.2%} | "
-            f"S2={ds.attrs.get('deep_snow_gap_s2_fraction', 0.0):.2%}"
-        )
-
-
 def validate_model_inputs(inputs, input_channels=None):
     channels = input_channels or get_prediction_input_channels()
     nonfinite_mask = ~torch.isfinite(inputs)
@@ -217,38 +199,18 @@ def predict_in_tiles(inputs, models, tile_size=MODEL_TILE_SIZE, padding=MODEL_TI
     stride = tile_size - 2 * padding
     inputs_pad = F.pad(inputs, (0, tile_size, 0, tile_size), "constant", 0)
     pred_pad = torch.empty_like(inputs_pad[0, 0, :, :])
-    tile_count_x = math.ceil(inputs.shape[-1] / stride)
-    tile_count_y = math.ceil(inputs.shape[-2] / stride)
-    total_tiles = tile_count_x * tile_count_y
+    print("[predict] running tiled inference")
 
-    print(
-        "[predict] running tiled inference: "
-        f"{total_tiles} model tile(s) | tile_size={tile_size} | padding={padding} | stride={stride}"
-    )
-
-    tile_number = 0
     for x_index in range(math.ceil(inputs.shape[-1] / stride)):
         for y_index in range(math.ceil(inputs.shape[-2] / stride)):
-            tile_number += 1
             ymin = y_index * stride
             xmin = x_index * stride
-            tile_start = time.perf_counter()
-            print(
-                "[predict] inference tile "
-                f"{tile_number}/{total_tiles}: x={x_index + 1}/{tile_count_x}, "
-                f"y={y_index + 1}/{tile_count_y}, window=rows {ymin}:{ymin + tile_size}, "
-                f"cols {xmin}:{xmin + tile_size}"
-            )
             tile_prediction = _predict_tile(
                 models,
                 inputs_pad[:, :, ymin : ymin + tile_size, xmin : xmin + tile_size],
                 gpu=gpu,
             )
             _write_tile_prediction(pred_pad, tile_prediction, ymin, xmin, tile_size, padding)
-            print(
-                f"[predict] finished inference tile {tile_number}/{total_tiles} "
-                f"in {time.perf_counter() - tile_start:.2f}s"
-            )
 
     return pred_pad[: inputs.shape[-2], : inputs.shape[-1]]
 
@@ -296,29 +258,21 @@ def add_density_and_swe(
     if "dowy" not in ds:
         raise ValueError("dowy must be present before deriving SWE and density.")
 
-    print(f"[predict] opening Hill precipitation-weight raster: {Path(pptwt_path).as_posix()}")
     depth = ds["predicted_sd"]
     pptwt = rioxarray.open_rasterio(pptwt_path).squeeze("band", drop=True).rio.write_crs("EPSG:4326")
-    print(f"[predict] opening Hill temperature-difference raster: {Path(td_path).as_posix()}")
     td = rioxarray.open_rasterio(td_path).squeeze("band", drop=True).rio.write_crs("EPSG:4326")
 
-    print("[predict] reprojecting Hill precipitation-weight raster to prediction grid")
     pptwt = pptwt.rio.reproject_match(depth)
-    print("[predict] finished reprojecting Hill precipitation-weight raster")
-    print("[predict] reprojecting Hill temperature-difference raster to prediction grid")
     td = td.rio.reproject_match(depth)
-    print("[predict] finished reprojecting Hill temperature-difference raster")
 
     valid_observation = depth.notnull()
     snow_present = valid_observation & (depth > 0)
-    print("[predict] computing Hill SWE from predicted depth")
     swe_mm = _hill_swe(
         depth.where(snow_present),
         pptwt.where(snow_present),
         td.where(snow_present),
         ds["dowy"].where(snow_present),
     )
-    print("[predict] converting Hill SWE to SWE and density outputs")
     swe_m = (swe_mm / 1000.0).where(snow_present, 0).where(valid_observation)
     density = xr.where(snow_present, (swe_m / depth) * 1000.0, 0).where(valid_observation)
 
@@ -359,39 +313,27 @@ def finalize_prediction_dataset(
     crop_bounds=None,
     crop_crs=None,
 ):
-    print("[predict] finalizing prediction dataset")
-    print("[predict] converting model output to predicted snow depth grid")
     pred_sd = undo_norm(pred_sd, norm_dict["aso_sd"])
     ds["predicted_sd"] = (("y", "x"), pred_sd.cpu().numpy().astype(np.float32))
     del pred_sd
     gc.collect()
     ds["predicted_sd"] = ds["predicted_sd"].where(ds["predicted_sd"] > 0, 0)
     ds["predicted_sd"] = _write_float_nodata(ds["predicted_sd"])
-    print("[predict] attaching source CRS to prediction dataset")
     ds = ds.rio.write_crs(crs)
 
     if crop_bounds is not None:
-        print(
-            "[predict] clipping prediction dataset to requested bounds before reprojection: "
-            f"{crop_bounds[0]} {crop_bounds[1]} {crop_bounds[2]} {crop_bounds[3]}"
-        )
         ds = ds.rio.clip_box(*crop_bounds, crs=crop_crs)
-        print("[predict] finished clipping prediction dataset")
 
     if out_crs == "wgs84":
-        print("[predict] reprojecting prediction dataset to EPSG:4326")
         ds = ds.rio.reproject("EPSG:4326")
         ds = ds.rio.write_crs("EPSG:4326")
-        print("[predict] finished reprojection to EPSG:4326")
 
     if predict_swe:
-        print("[predict] deriving snow density and SWE from predicted depth")
         ds = add_density_and_swe(
             ds,
             pptwt_path=hill_pptwt_path,
             td_path=hill_td_path,
         )
-        print("[predict] finished deriving snow density and SWE")
 
     if write_tif:
         output_path = f"{out_dir}/{out_name}_sd.tif"
@@ -451,7 +393,6 @@ def apply_models(
     ds = load_prediction_dataset(out_dir)
     inputs = build_model_inputs(ds)
     validate_model_inputs(inputs, input_channels=get_prediction_input_channels())
-    log_model_input_summary(ds, inputs, input_channels=get_prediction_input_channels())
     print(f"[predict] preparing {len(model_paths)} model(s) for inference")
     models = load_resdepth_models(
         model_paths,

@@ -1,6 +1,7 @@
 import math
 import os
 import time
+import gc
 from pathlib import Path
 
 import numpy as np
@@ -117,13 +118,15 @@ def load_prediction_dataset(out_dir):
                 f"({data_gap_fraction:.2%} of the prediction grid). "
                 "Model inputs will still be zero-filled for inference compatibility."
             )
-    return ds.fillna(0)
+    return ds
 
 
-def build_normalized_feature_dict(ds):
+def build_normalized_feature_dict(ds, input_channels=None):
+    channels = input_channels or get_prediction_input_channels()
     feature_dict = {}
-    for feature_name, (source_name, norm) in FEATURE_SPECS.items():
-        tensor = torch.as_tensor(ds[source_name].values, dtype=torch.float32)
+    for feature_name in channels:
+        source_name, norm = FEATURE_SPECS[feature_name]
+        tensor = torch.as_tensor(np.nan_to_num(ds[source_name].values, nan=0.0), dtype=torch.float32)
         if norm is not None:
             tensor = calc_norm(tensor, norm)
         feature_dict[feature_name] = torch.clamp(tensor, 0, 1)[None, None, :, :]
@@ -132,7 +135,7 @@ def build_normalized_feature_dict(ds):
 
 def build_model_inputs(ds, input_channels=None):
     channels = input_channels or get_prediction_input_channels()
-    feature_dict = build_normalized_feature_dict(ds)
+    feature_dict = build_normalized_feature_dict(ds, input_channels=channels)
     return torch.cat([feature_dict[channel] for channel in channels], dim=1)
 
 
@@ -360,24 +363,26 @@ def finalize_prediction_dataset(
     print("[predict] converting model output to predicted snow depth grid")
     pred_sd = undo_norm(pred_sd, norm_dict["aso_sd"])
     ds["predicted_sd"] = (("y", "x"), pred_sd.cpu().numpy().astype(np.float32))
+    del pred_sd
+    gc.collect()
     ds["predicted_sd"] = ds["predicted_sd"].where(ds["predicted_sd"] > 0, 0)
     ds["predicted_sd"] = _write_float_nodata(ds["predicted_sd"])
     print("[predict] attaching source CRS to prediction dataset")
     ds = ds.rio.write_crs(crs)
+
+    if crop_bounds is not None:
+        print(
+            "[predict] clipping prediction dataset to requested bounds before reprojection: "
+            f"{crop_bounds[0]} {crop_bounds[1]} {crop_bounds[2]} {crop_bounds[3]}"
+        )
+        ds = ds.rio.clip_box(*crop_bounds, crs=crop_crs)
+        print("[predict] finished clipping prediction dataset")
 
     if out_crs == "wgs84":
         print("[predict] reprojecting prediction dataset to EPSG:4326")
         ds = ds.rio.reproject("EPSG:4326")
         ds = ds.rio.write_crs("EPSG:4326")
         print("[predict] finished reprojection to EPSG:4326")
-
-    if crop_bounds is not None:
-        print(
-            "[predict] clipping prediction dataset to requested bounds: "
-            f"{crop_bounds[0]} {crop_bounds[1]} {crop_bounds[2]} {crop_bounds[3]}"
-        )
-        ds = ds.rio.clip_box(*crop_bounds, crs=crop_crs)
-        print("[predict] finished clipping prediction dataset")
 
     if predict_swe:
         print("[predict] deriving snow density and SWE from predicted depth")
@@ -455,6 +460,9 @@ def apply_models(
         input_channels=get_prediction_input_channels(),
     )
     pred_sd = predict_in_tiles(inputs, models, gpu=gpu)
+    del inputs
+    del models
+    gc.collect()
     return finalize_prediction_dataset(
         ds=ds,
         pred_sd=pred_sd,

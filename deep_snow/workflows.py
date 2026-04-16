@@ -29,10 +29,10 @@ DEFAULT_BUFFER_EXPANSION_STEP_DAYS = 2
 SENTINEL2_START_DATE = "20150623"
 SNOW_OFF_WARNING_MAX_OFFSET_DAYS = 548
 CONUS_BOUNDS = {
-    "minlon": -125.0,
-    "minlat": 24.0,
-    "maxlon": -66.0,
-    "maxlat": 50.0,
+    "minlon": -126.0,
+    "minlat": 23.0,
+    "maxlon": -65.0,
+    "maxlat": 51.0,
 }
 WESTERN_US_MAX_LON = -100.0
 

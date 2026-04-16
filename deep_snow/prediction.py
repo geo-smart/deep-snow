@@ -122,7 +122,7 @@ def load_prediction_dataset(out_dir):
 
 
 def build_normalized_feature_dict(ds, input_channels=None):
-    channels = input_channels or get_prediction_input_channels()
+    channels = input_channels or list(FEATURE_SPECS.keys())
     feature_dict = {}
     for feature_name in channels:
         source_name, norm = FEATURE_SPECS[feature_name]

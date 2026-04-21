@@ -12,7 +12,7 @@ The focus is on a simple, reproducible pipeline that can be run locally or via G
 
 <img src="imgs/repo_header_v0.png" width="100%">
 
-## Choose Your Workflow
+## Choose a Workflow
 
 There are two main ways to use `deep-snow`. Use GitHub Actions for quick runs or large batch jobs with minimal setup. Use a local install if you want to develop, debug, or build custom workflows with the command line interface (CLI) or Python API.
 

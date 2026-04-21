@@ -155,29 +155,28 @@ class PredictionHelpersTests(unittest.TestCase):
 
         self.assertIn("ndsi", str(exc.exception))
 
-    def test_log_model_input_summary_reports_grid_and_gap_fractions(self):
-        inputs = torch.ones((1, 3, 5, 7), dtype=torch.float32)
-        fake_ds = type(
-            "FakeDataset",
-            (),
+    def test_build_normalized_feature_dict_respects_requested_input_channels(self):
+        ds = {
+            "B02": type("FakeVar", (), {"values": [[1.0, 2.0], [3.0, 4.0]]})(),
+            "B11": type("FakeVar", (), {"values": [[5.0, 6.0], [7.0, 8.0]]})(),
+            "fcf": type("FakeVar", (), {"values": [[0.2, 0.3], [0.4, 0.5]]})(),
+        }
+
+        with patch.dict(
+            prediction.FEATURE_SPECS,
             {
-                "attrs": {
-                    "deep_snow_input_gap_fraction": 0.25,
-                    "deep_snow_gap_s1_snowon_fraction": 0.10,
-                    "deep_snow_gap_s1_snowoff_fraction": 0.05,
-                    "deep_snow_gap_s2_fraction": 0.40,
-                }
+                "blue": ("B02", None),
+                "swir1": ("B11", None),
+                "fcf": ("fcf", None),
             },
-        )()
+            clear=True,
+        ):
+            feature_dict = prediction.build_normalized_feature_dict(ds, input_channels=["fcf", "blue"])
 
-        with patch("builtins.print") as mock_print:
-            prediction.log_model_input_summary(fake_ds, inputs, input_channels=["a", "b", "c"])
+        self.assertEqual(set(feature_dict.keys()), {"fcf", "blue"})
+        self.assertNotIn("swir1", feature_dict)
 
-        printed = "\n".join(str(call.args[0]) for call in mock_print.call_args_list if call.args)
-        self.assertIn("grid=5x7", printed)
-        self.assertIn("S2=40.00%", printed)
-
-    def test_predict_in_tiles_logs_per_tile_progress(self):
+    def test_predict_in_tiles_logs_high_level_progress(self):
         class EchoModel:
             def __call__(self, tile_inputs):
                 return tile_inputs[:, :1]
@@ -194,9 +193,7 @@ class PredictionHelpersTests(unittest.TestCase):
             )
 
         printed = "\n".join(str(call.args[0]) for call in mock_print.call_args_list if call.args)
-        self.assertIn("running tiled inference: 12 model tile(s)", printed)
-        self.assertIn("inference tile 1/12", printed)
-        self.assertIn("finished inference tile 12/12", printed)
+        self.assertIn("[predict] running tiled inference", printed)
 
 
 @unittest.skipIf(apply_model is None or apply_model_ensemble is None, "application runtime not available")

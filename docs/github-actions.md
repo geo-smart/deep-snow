@@ -99,13 +99,13 @@ In practice, `composite` is often the safer default for large AOIs or patchy clo
 
 `False` keeps the original depth-only behavior.
 
-`True` also applies the Hill depth-to-SWE model after depth prediction and uploads `*_swe.tif` and `*_density.tif` artifacts for each tile.
+`True` also applies the Hill et al. depth-to-SWE model after depth prediction and uploads `*_swe.tif` and `*_density.tif` artifacts for each tile.
 
 ## Search windows and retries
 
-The Actions workflows use the package's internal acquisition-search behavior. In the current implementation, predictions begin with a default search window around the requested dates, and the underlying local prediction workflow can expand that window if it cannot find usable acquisitions.
+The Actions workflows use the package's internal acquisition-search behavior. In the current implementation, predictions begin with a default search window around the requested dates, and the underlying local prediction workflow will expand that window if it cannot find usable acquisitions.
 
-This is helpful operationally, but it also means the final inputs may come from a broader temporal window than you initially expected. The prediction summary and provenance metadata are therefore important for interpretation, especially when a result seems surprising.
+This is helpful operationally, but it also means the final inputs may come from a broader temporal window than you initially expected. The prediction summary and provenance metadata are therefore important for interpretation.
 
 ## Artifacts
 
@@ -119,13 +119,6 @@ The tile prediction workflow uploads these outputs when present:
 
 For large AOIs or time-series jobs, expect multiple artifacts because work is split across tiles and dates.
 
-## Recommended first run
-
-Use a small AOI and one date first. This helps you confirm that:
-
-- your input formatting is correct
-- the selected date has usable source imagery
-- the artifact outputs match what you expect
 
 ## Tips
 

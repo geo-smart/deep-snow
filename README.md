@@ -2,19 +2,19 @@
 
 [![CI](https://github.com/geo-smart/deep-snow/actions/workflows/ci.yml/badge.svg)](https://github.com/geo-smart/deep-snow/actions/workflows/ci.yml)
 
-Machine learning tools for predicting snow depth from remote sensing data.
+Deep learning tools for predicting snow depth from remote sensing data.
 
 ## Overview
 
-`deep-snow` provides models and workflows to estimate snow depth from Sentinel-1, Sentinel-2, SNODAS, terrain, and forest-cover inputs.
+`deep-snow` is an open-source package that provides models and workflows to estimate snow depth from Sentinel-1, Sentinel-2, SNODAS, terrain, and forest-cover inputs.
 
-The focus is on a simple, reproducible pipeline that can be run locally or via GitHub Actions. For model details and evaluation, see [Brencher et al., 2026](https://doi.org/10.2139/ssrn.6557436).
+The focus is on a simple, reproducible pipeline that can be run locally or via GitHub Actions. For model details and evaluation, see our preprint [Brencher et al., 2026](https://doi.org/10.2139/ssrn.6557436).
 
-<img src="imgs/tuolumne_test_v0_lowres.png" width="50%">
+<img src="imgs/repo_header_v0.png" width="100%">
 
 ## Choose Your Workflow
 
-There are two main ways to use `deep-snow`. Use GitHub Actions for quick runs or large batch jobs with minimal setup. Use a local install if you want to develop, debug, or build custom workflows with the CLI or Python API.
+There are two main ways to use `deep-snow`. Use GitHub Actions for quick runs or large batch jobs with minimal setup. Use a local install if you want to develop, debug, or build custom workflows with the command line interface (CLI) or Python API.
 
 ## Quickstart
 
@@ -32,7 +32,7 @@ See [docs/github-actions.md](docs/github-actions.md) for details.
 ```bash
 git clone https://github.com/geo-smart/deep-snow.git
 cd deep-snow
-conda install mamba -n base -c conda-forge
+conda install mamba -n base -c conda-forge # install mamba, if not already installed
 mamba env create -f environment.yml
 conda activate deep-snow
 pip install -e .
@@ -43,8 +43,6 @@ Make a prediction using the CLI:
 ```bash
 deep-snow predict-sd 20240320 20230910 "-108.20 37.55 -108.00 37.75" 25
 ```
-
-Add `--predict-swe True` if you also want Hill-model SWE and density outputs alongside depth.
 
 Or make a prediction using the Python API:
 
@@ -69,8 +67,6 @@ ds = predict_sd(
 
 See [docs/local-prediction.md](docs/local-prediction.md) for details.
 
-<img src="imgs/test_prediction_zoom_v0_lowres.png" width="100%">
-
 ## Documentation
 - [docs/scientific-context.md](docs/scientific-context.md): data sources, model formulation, resolution, validation domain, and limitations
 - [docs/github-actions.md](docs/github-actions.md): running batch workflows in GitHub
@@ -78,7 +74,7 @@ See [docs/local-prediction.md](docs/local-prediction.md) for details.
 
 ## Data
 
-The model uses the following as inputs:
+The model uses the following input data sources:
 
 - Sentinel-1 RTC backscatter data (snow-on and snow-off)
 - Sentinel-2 imagery (snow-on)
@@ -86,13 +82,20 @@ The model uses the following as inputs:
 - Fractional forest cover
 - COP30 digital elevation model
 
-Sentinel-1 and Sentinel-2 inputs are selected close in time to the target date. Inputs are co-registered to a common grid and assembled into model-ready datasets. Airborne Snow Observatory lidar snow depth maps are used for training and evaluation, but not for inference. 
+Sentinel-1 and Sentinel-2 inputs are selected close in time to the target date. Inputs are co-registered to a common grid and assembled into model-ready datasets. Airborne lidar snow depth maps are used for training and evaluation, but not for inference. 
 
-<img src="imgs/inputs_v0.png" width="70%">
+<img src="imgs/inputs_v0.png" width="50%">
 
 ## Contributing
 
-Contributions are welcome!
+Contributions are welcome! No matter what your level of experience, you CAN help make this package better. 
+
+If you have a suggestion, please fork the repo and create a pull request. You can also simply open an issue.
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ## Collaborators
 
@@ -142,7 +145,7 @@ George Brencher, Eric Gagliano, Taylor Ganz, Dawn URycki, Taryn Black, Mansa Kri
 
 ## Acknowledgements
 
-This project draws on code, ideas, and inspiration from:
+This project draws on code, language, ideas, and inspiration from:
 
 - https://github.com/SnowEx/spicy-snow
 - https://github.com/relativeorbit/fufiters

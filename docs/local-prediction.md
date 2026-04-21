@@ -24,7 +24,7 @@ The package installs a command-line entry point named `deep-snow`.
 The main local commands are:
 
 - `predict-sd`: predict snow depth for one AOI/date
-- `predict-sd-timeseries`: predict a time series for one AOI across a date range
+- `predict-sd-timeseries`: predict a time series for one AOI over a date range using the package's fixed 12-day cadence
 
 Large AOIs are tiled and mosaiced automatically during `predict-sd`.
 
@@ -59,20 +59,25 @@ Two options deserve special attention:
 - `--use-ensemble`: uses the packaged ensemble of five models instead of the default single model
 - `--buffer-period`: controls the search window around the requested date for satellite acquisitions
 
-For most users, stopping here is enough. There is also a lower-level `predict-tile` command for advanced/debug use when you explicitly want to force a single tile without automatic large-AOI tiling.
-
 Example:
 
 ```bash
 deep-snow predict-sd-timeseries 20240101 20240320 0901 "-108.20 37.55 -108.00 37.75" 25
 ```
 
-If you also want density and SWE for every output date, add `--predict-swe True`.
+Time-series positional arguments:
 
-Other CLI utilities:
+- `begin_date`: earliest allowed prediction date in `YYYYmmdd`
+- `end_date`: latest allowed prediction date in `YYYYmmdd`
+- `snow_off_day`: recurring snow-off month/day in `mmdd` format
+- `aoi`: bounding box as `minlon minlat maxlon maxlat`
+- `cloud_cover`: maximum allowed Sentinel-2 cloud-cover percentage
 
-- `deep-snow prep-tiles ...`: generate tile jobs for a bounding box
-- `deep-snow prep-time-series ...`: generate target and snow-off date pairs for a time series
+The workflow does not predict every calendar day in the range. Instead, it generates target dates on the package's fixed 12-day cadence, stepping backward from `end_date` toward `begin_date`. For each target date, it derives the corresponding `snow_off_date` as the most recent occurrence of `snow_off_day`.
+
+For example, `deep-snow predict-sd-timeseries 20240101 20240320 0901 ...` will request predictions for `20240320`, `20240308`, `20240225`, and so on until the next 12-day step would fall before `20240101`. The `0901` argument means "use the most recent September 1 before each target date", so a target date in early 2024 will use `20230901` as its snow-off reference.
+
+If you also want density and SWE for every generated output date, add `--predict-swe True`.
 
 ## Python API
 
@@ -113,7 +118,7 @@ Common arguments:
 - `selection_strategy`: `composite` or `nearest_usable`
 - `sentinel1_orbit_selection`: `descending` or `all`
 
-For time series, use `predict_sd_timeseries`.
+For time series, use `predict_sd_timeseries`. Its `begin_date`, `end_date`, and `snow_off_day` arguments follow the same rules as the CLI command: the workflow generates outputs on the fixed 12-day cadence and derives the snow-off reference date for each step from the most recent occurrence of `snow_off_day`.
 
 Advanced lower-level helpers such as `predict_tile` and `predict_batch` still exist internally, but most local users should not need them. The older alias `predict_sd_ts` is also still available for compatibility.
 
@@ -137,7 +142,7 @@ This broadens the available Sentinel-1 pool, which can help in sparse cases, but
 
 ## Automatic retries and expanded windows
 
-If a run cannot find usable acquisitions, the local prediction workflow can automatically expand the acquisition search window and retry. That is helpful operationally, but it also means the final inputs may be farther from the requested date than the initial `buffer_period` suggests.
+If a run cannot find usable acquisitions, the local prediction workflow will automatically expand the acquisition search window and retry. That is helpful operationally, but it also means the final inputs may be farther from the requested date than the initial `buffer_period` suggests.
 
 For science use, it is worth checking:
 

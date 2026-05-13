@@ -2,7 +2,7 @@
 authors = ["Scott Henderson <3924836+scottyhq@users.noreply.github.com>"]
 channels = ["conda-forge"]
 name = "deep-snow"
-platforms = ["osx-arm64"]
+platforms = ["osx-arm64", "linux-64"]
 version = "0.1.0"
 
 [dependencies]

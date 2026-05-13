@@ -2,9 +2,6 @@
 name: batch_sd_timeseries
 run-name: snow depth time series ${{ inputs.begin_date }}-${{ inputs.end_date }}
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 on:
   workflow_dispatch:
     inputs:
@@ -73,26 +70,20 @@ jobs:
     outputs:
       MATRIX: ${{ steps.prep_dates.outputs.MATRIX_PARAMS_COMBINATIONS }}
       DATE_COUNT: ${{ steps.prep_dates.outputs.DATE_COUNT }}
-    defaults:
-      run:
-        shell: bash -el {0}
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
 
-      - name: Install Conda environment with Micromamba
-        uses: mamba-org/setup-micromamba@v3
+      - uses: prefix-dev/setup-pixi@v0.9.5
         with:
-          cache-environment: true
-          environment-file: environment.yml
-
-      - name: Install deep-snow
-        run: |
-          pip install .
+          cache: true
+          frozen: true
+          activate-environment: true
 
       - name: Select dates over time range
         id: prep_dates
-        run: | 
+        run: |
           python -u scripts/actions/prep_time_series.py ${{ inputs.begin_date }} ${{ inputs.end_date }}  ${{ inputs.snow_off_day }}
 
       - name: Summarize Time-Series Request
@@ -121,7 +112,7 @@ jobs:
     uses: ./.github/workflows/batch_predict_sd.yml
     with:
       target_date: ${{ matrix.target_date }}
-      snow_off_date: ${{ matrix.snow_off_date }} 
+      snow_off_date: ${{ matrix.snow_off_date }}
       aoi: ${{ inputs.aoi }}
       cloud_cover: ${{ inputs.cloud_cover }}
       selection_strategy: ${{ inputs.selection_strategy }}

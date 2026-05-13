@@ -2,9 +2,6 @@
 name: batch_predict_sd
 run-name: batch snow depth ${{ inputs.target_date }}
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 on:
   workflow_dispatch:
     inputs:
@@ -60,7 +57,7 @@ on:
             options:
             - 'False'
             - 'True'
-  
+
   workflow_call:
     inputs:
         target_date:
@@ -94,26 +91,20 @@ jobs:
     outputs:
       MATRIX: ${{ steps.prep_tiles.outputs.MATRIX_PARAMS_COMBINATIONS }}
       TILE_COUNT: ${{ steps.prep_tiles.outputs.TILE_COUNT }}
-    defaults:
-      run:
-        shell: bash -el {0}
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
 
-      - name: Install Conda environment with Micromamba
-        uses: mamba-org/setup-micromamba@v3
+      - uses: prefix-dev/setup-pixi@v0.9.5
         with:
-          cache-environment: true
-          environment-file: environment.yml
-
-      - name: Install deep-snow
-        run: |
-          pip install .
+          cache: true
+          frozen: true
+          activate-environment: true
 
       - name: Prepare tiles over area of interest
         id: prep_tiles
-        run: | 
+        run: |
           python -u scripts/actions/prep_tiles.py ${{ inputs.target_date }} "${{ inputs.aoi }}"
 
       - name: Summarize Tile Preparation
@@ -141,7 +132,7 @@ jobs:
     uses: ./.github/workflows/predict_tile_sd.yml
     with:
       target_date: ${{ inputs.target_date }}
-      snow_off_date: ${{ inputs.snow_off_date }} 
+      snow_off_date: ${{ inputs.snow_off_date }}
       aoi: ${{ matrix.aoi }}
       clip_aoi: ${{ matrix.clip_aoi }}
       cloud_cover: ${{ inputs.cloud_cover }}

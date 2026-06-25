@@ -123,7 +123,7 @@ jobs:
                 fi
 
             - name: Upload Snow Depth Map as Artifact
-              uses: actions/upload-artifact@v6
+              uses: actions/upload-artifact@v7
               with:
                 name: ${{ inputs.workflow_name }}-snow-depth
                 path: |

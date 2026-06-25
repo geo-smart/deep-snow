@@ -22,7 +22,12 @@ import xarray as xr
 from rasterio.errors import NotGeoreferencedWarning
 from rioxarray.merge import merge_arrays
 from shapely.geometry import shape
-from deep_snow.errors import AcquisitionError, EmptyAcquisitionError, TransientAcquisitionError
+from deep_snow.errors import (
+    AcquisitionError,
+    EmptyAcquisitionError,
+    TransientAcquisitionError,
+    is_likely_transient_error,
+)
 from deep_snow.inputs import (
     get_default_fcf_cache_path,
     get_default_hill_pptwt_cache_path,
@@ -100,35 +105,13 @@ def create_stac_client():
     )
 
 
-def _is_likely_transient_error(exc):
-    message = str(exc).lower()
-    transient_markers = [
-        "timeout",
-        "timed out",
-        "temporarily unavailable",
-        "temporary failure",
-        "connection reset",
-        "connection aborted",
-        "connection refused",
-        "remote disconnected",
-        "service unavailable",
-        "too many requests",
-        "502",
-        "503",
-        "504",
-    ]
-    return isinstance(exc, (TimeoutError, ConnectionError, HTTPError, URLError)) or any(
-        marker in message for marker in transient_markers
-    )
-
-
 def search_item_collection(stac, max_retries=5, retry_delay=5, **search_kwargs):
     for attempt in range(max_retries):
         try:
             search = stac.search(**search_kwargs)
             return search.item_collection()
         except Exception as exc:
-            if not _is_likely_transient_error(exc):
+            if not is_likely_transient_error(exc):
                 raise
             _log_detail(f"transient search failure on attempt {attempt + 1}: {exc}")
             if attempt < max_retries - 1:

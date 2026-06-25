@@ -240,6 +240,43 @@ class WorkflowRoutingTests(unittest.TestCase):
         self.assertEqual(mock_download.call_count, 2)
         mock_sleep.assert_called_once()
 
+    def test_predict_tile_retries_planetary_computer_time_limit_message(self):
+        fake_ds = type("FakeDataset", (), {"attrs": {}})()
+        transient_exc = RuntimeError(
+            "The request exceeded the maximum allowed time, please try again. "
+            "If the issue persists, please contact planetarycomputer@microsoft.com."
+        )
+
+        with patch("deep_snow.workflows.validate_prediction_dates"):
+            with patch("deep_snow.workflows.validate_prediction_aoi"):
+                with patch(
+                    "deep_snow.api.download_data",
+                    side_effect=[transient_exc, "EPSG:32612"],
+                ) as mock_download:
+                    with patch("deep_snow.api.read_prediction_input_provenance", return_value={}):
+                        with patch("deep_snow.api.apply_model", return_value=fake_ds):
+                            with patch("deep_snow.api.attach_prediction_metadata", side_effect=lambda ds, summary: ds):
+                                with patch("deep_snow.api.build_prediction_summary", side_effect=lambda **kwargs: kwargs):
+                                    with patch("time.sleep") as mock_sleep:
+                                        result = workflows.predict_tile(
+                                            target_date="20240320",
+                                            snow_off_date="20230910",
+                                            aoi={
+                                                "minlon": -108.2,
+                                                "minlat": 37.55,
+                                                "maxlon": -108.0,
+                                                "maxlat": 37.75,
+                                            },
+                                            cloud_cover=25,
+                                            use_ensemble=False,
+                                            emit_summary=False,
+                                            max_retries=2,
+                                        )
+
+        self.assertIs(result, fake_ds)
+        self.assertEqual(mock_download.call_count, 2)
+        mock_sleep.assert_called_once()
+
     def test_predict_time_series_uses_batch_predictions_for_each_date(self):
         class FakeRio:
             def __init__(self, result):

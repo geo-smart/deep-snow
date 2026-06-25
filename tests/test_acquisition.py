@@ -13,6 +13,14 @@ except ImportError:  # pragma: no cover - depends on optional runtime deps
 
 @unittest.skipIf(acquisition is None, "acquisition runtime not available")
 class AcquisitionHelpersTests(unittest.TestCase):
+    def test_planetary_computer_time_limit_message_is_transient(self):
+        exc = RuntimeError(
+            "The request exceeded the maximum allowed time, please try again. "
+            "If the issue persists, please contact planetarycomputer@microsoft.com."
+        )
+
+        self.assertTrue(acquisition.is_likely_transient_error(exc))
+
     def test_get_snodas_cache_dir_uses_project_cache_directory(self):
         cache_dir = acquisition.get_snodas_cache_dir()
 

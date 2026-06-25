@@ -6,7 +6,11 @@ from datetime import datetime
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 
-from deep_snow.errors import EmptyAcquisitionError, TransientAcquisitionError
+from deep_snow.errors import (
+    EmptyAcquisitionError,
+    TransientAcquisitionError,
+    is_likely_transient_error,
+)
 from deep_snow.inputs import build_output_name, generate_dates, most_recent_occurrence, parse_bounding_box
 from deep_snow.resources import (
     get_default_hill_pptwt_path,
@@ -555,7 +559,14 @@ def _predict_single_tile(
                 time.sleep(retry_delay)
                 continue
             raise
-        except Exception:
+        except Exception as exc:
+            if not is_likely_transient_error(exc):
+                raise
+            transient_attempt += 1
+            print(f"Transient failure on attempt {transient_attempt}/{max_retries}: {exc}")
+            if transient_attempt < max_retries:
+                time.sleep(retry_delay)
+                continue
             raise
 
 

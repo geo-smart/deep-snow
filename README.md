@@ -12,7 +12,7 @@ The focus is on a simple, reproducible pipeline that can be run locally or via G
 
 <img src="imgs/repo_header_v0.png" width="100%">
 
-## Choose Your Workflow
+## Choose a Workflow
 
 There are two main ways to use `deep-snow`. Use GitHub Actions for quick runs or large batch jobs with minimal setup. Use a local install if you want to develop, debug, or build custom workflows with the command line interface (CLI) or Python API.
 
@@ -27,7 +27,17 @@ Fork the repo and run workflows from the Actions tab:
 
 See [docs/github-actions.md](docs/github-actions.md) for details.
 
-### Option 2: Local install
+### Option 2: Local install (we recommend pixi over conda)
+
+```
+git clone https://github.com/geo-smart/deep-snow.git
+cd deep-snow
+pixi shell  # 'exit'
+# test run
+pixi run predict-example
+```
+
+### Option 2: Local install (with conda)
 
 ```bash
 git clone https://github.com/geo-smart/deep-snow.git
@@ -82,13 +92,13 @@ The model uses the following input data sources:
 - Fractional forest cover
 - COP30 digital elevation model
 
-Sentinel-1 and Sentinel-2 inputs are selected close in time to the target date. Inputs are co-registered to a common grid and assembled into model-ready datasets. Airborne lidar snow depth maps are used for training and evaluation, but not for inference. 
+Sentinel-1 and Sentinel-2 inputs are selected close in time to the target date. Inputs are co-registered to a common grid and assembled into model-ready datasets. Airborne lidar snow depth maps are used for training and evaluation, but not for inference.
 
 <img src="imgs/inputs_v0.png" width="50%">
 
 ## Contributing
 
-Contributions are welcome! No matter what your level of experience, you CAN help make this package better. 
+Contributions are welcome! No matter what your level of experience, you CAN help make this package better.
 
 If you have a suggestion, please fork the repo and create a pull request. You can also simply open an issue.
 1. Fork the Project

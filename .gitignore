@@ -1,3 +1,11 @@
+# deep-snow example outputs
+data/
+tmp-output/
+
+# pixi environments
+.pixi/*
+!.pixi/config.toml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

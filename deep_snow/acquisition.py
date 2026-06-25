@@ -50,6 +50,8 @@ DEFAULT_SNODAS_DOWNLOAD_RETRIES = int(os.environ.get("DEEP_SNOW_SNODAS_DOWNLOAD_
 DEFAULT_SNODAS_RETRY_DELAY_SECONDS = float(os.environ.get("DEEP_SNOW_SNODAS_RETRY_DELAY_SECONDS", "5"))
 DEFAULT_MAX_BUFFER_EXPANSIONS = 3
 DEFAULT_BUFFER_EXPANSION_STEP_DAYS = 2
+DEFAULT_MAX_S1_GAP_FRACTION = float(os.environ.get("DEEP_SNOW_MAX_S1_GAP_FRACTION", "0.25"))
+DEFAULT_MAX_S2_GAP_FRACTION = float(os.environ.get("DEEP_SNOW_MAX_S2_GAP_FRACTION", "0.25"))
 
 
 def date_range(date_str, padding):
@@ -134,9 +136,19 @@ def _format_time_summary(times):
     return f"{times[0]} ... {times[-1]} ({len(times)} total)"
 
 
-def _get_valid_pixel_fraction(ds):
-    reference_var = next(iter(ds.data_vars))
-    return float(ds[reference_var].notnull().mean().item())
+def _get_valid_pixel_fraction(ds, required_vars=None, excluded_scl_values=None):
+    if required_vars is None:
+        reference_var = next(iter(ds.data_vars))
+        return float(ds[reference_var].notnull().mean().item())
+
+    valid_mask = None
+    for var_name in required_vars:
+        var_valid = ds[var_name].notnull()
+        if var_name == "SCL" and excluded_scl_values:
+            var_valid = var_valid & ~ds[var_name].isin(excluded_scl_values)
+        valid_mask = var_valid if valid_mask is None else valid_mask & var_valid
+
+    return float(valid_mask.mean().item())
 
 
 def _compute_single_acquisition(ds, idx):
@@ -181,6 +193,7 @@ def _load_with_buffer_expansion(
     initial_buffer_period,
     max_buffer_expansions=DEFAULT_MAX_BUFFER_EXPANSIONS,
     buffer_expansion_step_days=DEFAULT_BUFFER_EXPANSION_STEP_DAYS,
+    max_gap_fraction=None,
 ):
     current_buffer_period = initial_buffer_period
     attempted_buffer_periods = [initial_buffer_period]
@@ -195,6 +208,32 @@ def _load_with_buffer_expansion(
             metadata["attempted_buffer_period_days"] = list(attempted_buffer_periods)
             metadata["final_buffer_period_days"] = current_buffer_period
             metadata["buffer_expansion_count"] = buffer_expansions
+            if max_gap_fraction is not None and metadata.get("valid_pixel_fraction") is not None:
+                gap_fraction = 1.0 - float(metadata["valid_pixel_fraction"])
+                metadata["gap_fraction"] = gap_fraction
+                metadata["max_allowed_gap_fraction"] = max_gap_fraction
+                metadata["coverage_requirement_satisfied"] = gap_fraction <= max_gap_fraction
+                if gap_fraction > max_gap_fraction:
+                    if buffer_expansions >= max_buffer_expansions:
+                        print(
+                            "WARNING: "
+                            f"{stage_title} gap fraction remains {gap_fraction:.2%} after attempting "
+                            f"buffer periods {attempted_buffer_periods}; proceeding with available data."
+                        )
+                        return ds, metadata
+
+                    next_buffer_period = current_buffer_period + buffer_expansion_step_days
+                    print(
+                        "WARNING: "
+                        f"{stage_title} gap fraction {gap_fraction:.2%} exceeds allowed "
+                        f"{max_gap_fraction:.2%} with buffer_period={current_buffer_period}. "
+                        f"Expanding buffer_period to {next_buffer_period} days "
+                        f"({buffer_expansions + 1}/{max_buffer_expansions}) and retrying only {stage_title}..."
+                    )
+                    current_buffer_period = next_buffer_period
+                    attempted_buffer_periods.append(current_buffer_period)
+                    buffer_expansions += 1
+                    continue
             return ds, metadata
         except EmptyAcquisitionError as exc:
             if buffer_expansions >= max_buffer_expansions:
@@ -418,6 +457,7 @@ def load_sentinel1_dataset(
             target_date=target_date,
             selection_strategy=selection_strategy,
         )
+        valid_pixel_fraction = _get_valid_pixel_fraction(ds, required_vars=["vv", "vh"])
         _log_detail(f"selected acquisitions: {_format_time_summary(selected_times)}")
     if rename_map:
         ds = ds.rename(rename_map)
@@ -480,6 +520,11 @@ def load_sentinel2_dataset(
             ds,
             target_date=target_date,
             selection_strategy=selection_strategy,
+        )
+        valid_pixel_fraction = _get_valid_pixel_fraction(
+            selected_ds,
+            required_vars=["B02", "B11", "SCL"],
+            excluded_scl_values=[0, 8, 9],
         )
         _log_detail(f"selected acquisitions: {_format_time_summary(selected_times)}")
 
@@ -587,6 +632,8 @@ def acquire_prediction_inputs(
     selection_strategy="composite",
     max_buffer_expansions=DEFAULT_MAX_BUFFER_EXPANSIONS,
     buffer_expansion_step_days=DEFAULT_BUFFER_EXPANSION_STEP_DAYS,
+    max_s1_gap_fraction=DEFAULT_MAX_S1_GAP_FRACTION,
+    max_s2_gap_fraction=DEFAULT_MAX_S2_GAP_FRACTION,
 ):
     aoi_geometry = build_aoi_geometry(aoi)
     aoi_gdf = build_aoi_geodataframe(aoi)
@@ -598,6 +645,7 @@ def acquire_prediction_inputs(
         initial_buffer_period=buffer_period,
         max_buffer_expansions=max_buffer_expansions,
         buffer_expansion_step_days=buffer_expansion_step_days,
+        max_gap_fraction=max_s1_gap_fraction,
         load_fn=lambda current_buffer_period: load_sentinel1_dataset(
             stac,
             aoi_geometry,
@@ -615,6 +663,7 @@ def acquire_prediction_inputs(
         initial_buffer_period=buffer_period,
         max_buffer_expansions=max_buffer_expansions,
         buffer_expansion_step_days=buffer_expansion_step_days,
+        max_gap_fraction=max_s1_gap_fraction,
         load_fn=lambda current_buffer_period: load_sentinel1_dataset(
             stac,
             aoi_geometry,
@@ -631,6 +680,7 @@ def acquire_prediction_inputs(
         initial_buffer_period=buffer_period,
         max_buffer_expansions=max_buffer_expansions,
         buffer_expansion_step_days=buffer_expansion_step_days,
+        max_gap_fraction=max_s2_gap_fraction,
         load_fn=lambda current_buffer_period: load_sentinel2_dataset(
             stac,
             aoi_geometry,

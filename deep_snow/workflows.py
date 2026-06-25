@@ -278,6 +278,8 @@ def _predict_large_aoi_in_tiles(
     land_path,
     max_buffer_expansions,
     buffer_expansion_step_days,
+    max_s1_gap_fraction,
+    max_s2_gap_fraction,
 ):
     from deep_snow.tiling import build_tile_jobs
 
@@ -328,6 +330,8 @@ def _predict_large_aoi_in_tiles(
             emit_summary=False,
             max_buffer_expansions=max_buffer_expansions,
             buffer_expansion_step_days=buffer_expansion_step_days,
+            max_s1_gap_fraction=max_s1_gap_fraction,
+            max_s2_gap_fraction=max_s2_gap_fraction,
         )
         tile_datasets.append(tile_ds)
 
@@ -379,6 +383,8 @@ def _predict_single_tile(
     validate_inputs=True,
     max_buffer_expansions=DEFAULT_MAX_BUFFER_EXPANSIONS,
     buffer_expansion_step_days=DEFAULT_BUFFER_EXPANSION_STEP_DAYS,
+    max_s1_gap_fraction=None,
+    max_s2_gap_fraction=None,
 ):
     from deep_snow.api import (
         apply_model,
@@ -427,6 +433,8 @@ def _predict_single_tile(
                 selection_strategy=selection_strategy,
                 max_buffer_expansions=max_buffer_expansions,
                 buffer_expansion_step_days=buffer_expansion_step_days,
+                max_s1_gap_fraction=max_s1_gap_fraction,
+                max_s2_gap_fraction=max_s2_gap_fraction,
             )
             input_provenance = _augment_input_provenance_with_retry_history(
                 read_prediction_input_provenance(out_dir),
@@ -597,6 +605,8 @@ def predict_tile(
     emit_summary=True,
     max_buffer_expansions=DEFAULT_MAX_BUFFER_EXPANSIONS,
     buffer_expansion_step_days=DEFAULT_BUFFER_EXPANSION_STEP_DAYS,
+    max_s1_gap_fraction=None,
+    max_s2_gap_fraction=None,
 ):
     summary_aoi = crop_aoi or aoi
     resolved_out_name = out_name or build_output_name(target_date, summary_aoi)
@@ -632,6 +642,8 @@ def predict_tile(
             validate_inputs=True,
             max_buffer_expansions=max_buffer_expansions,
             buffer_expansion_step_days=buffer_expansion_step_days,
+            max_s1_gap_fraction=max_s1_gap_fraction,
+            max_s2_gap_fraction=max_s2_gap_fraction,
         )
 
 
@@ -666,6 +678,8 @@ def predict_batch(
     land_path=DEFAULT_TILE_LAND_PATH,
     max_buffer_expansions=DEFAULT_MAX_BUFFER_EXPANSIONS,
     buffer_expansion_step_days=DEFAULT_BUFFER_EXPANSION_STEP_DAYS,
+    max_s1_gap_fraction=None,
+    max_s2_gap_fraction=None,
 ):
     from deep_snow.api import (
         attach_prediction_metadata,
@@ -722,6 +736,8 @@ def predict_batch(
                 land_path=land_path,
                 max_buffer_expansions=max_buffer_expansions,
                 buffer_expansion_step_days=buffer_expansion_step_days,
+                max_s1_gap_fraction=max_s1_gap_fraction,
+                max_s2_gap_fraction=max_s2_gap_fraction,
             )
             summary = build_prediction_summary(
                 target_date=target_date,
@@ -785,6 +801,8 @@ def predict_batch(
             validate_inputs=False,
             max_buffer_expansions=max_buffer_expansions,
             buffer_expansion_step_days=buffer_expansion_step_days,
+            max_s1_gap_fraction=max_s1_gap_fraction,
+            max_s2_gap_fraction=max_s2_gap_fraction,
         )
 
 
@@ -818,6 +836,8 @@ def predict_time_series(
     retry_delay=5,
     max_buffer_expansions=DEFAULT_MAX_BUFFER_EXPANSIONS,
     buffer_expansion_step_days=DEFAULT_BUFFER_EXPANSION_STEP_DAYS,
+    max_s1_gap_fraction=None,
+    max_s2_gap_fraction=None,
 ):
     import pandas as pd
     import xarray as xr
@@ -858,6 +878,8 @@ def predict_time_series(
             retry_delay=retry_delay,
             max_buffer_expansions=max_buffer_expansions,
             buffer_expansion_step_days=buffer_expansion_step_days,
+            max_s1_gap_fraction=max_s1_gap_fraction,
+            max_s2_gap_fraction=max_s2_gap_fraction,
         )
         ds = ds.expand_dims(time=[pd.to_datetime(job["target_date"], format="%Y%m%d")])
         if index > 1:

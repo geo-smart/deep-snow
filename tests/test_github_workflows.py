@@ -28,3 +28,17 @@ class GitHubWorkflowTests(unittest.TestCase):
         self.assertIn("--predict-swe ${{ inputs.predict_swe }}", tile_text)
         self.assertIn("data/*_swe.tif", tile_text)
         self.assertIn("data/*_density.tif", tile_text)
+
+    def test_workflows_do_not_expose_gap_threshold_inputs(self):
+        workflow_text = "\n".join(
+            [
+                (REPO_ROOT / ".github" / "workflows" / "batch_predict_ts.yml").read_text(),
+                (REPO_ROOT / ".github" / "workflows" / "batch_predict_sd.yml").read_text(),
+                (REPO_ROOT / ".github" / "workflows" / "predict_tile_sd.yml").read_text(),
+            ]
+        )
+
+        self.assertNotIn("max_s1_gap_fraction:", workflow_text)
+        self.assertNotIn("max_s2_gap_fraction:", workflow_text)
+        self.assertNotIn("--max-s1-gap-fraction", workflow_text)
+        self.assertNotIn("--max-s2-gap-fraction", workflow_text)

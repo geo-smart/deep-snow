@@ -34,6 +34,18 @@ def get_parser():
         default="False",
         help="Also derive snow density and SWE from predicted depth",
     )
+    parser.add_argument(
+        "--max-s1-gap-fraction",
+        type=float,
+        default=None,
+        help="Maximum allowed Sentinel-1 gap fraction before expanding the acquisition window",
+    )
+    parser.add_argument(
+        "--max-s2-gap-fraction",
+        type=float,
+        default=None,
+        help="Maximum allowed Sentinel-2 gap fraction before expanding the acquisition window",
+    )
     return parser
 
 def main():
@@ -49,6 +61,8 @@ def main():
         sentinel1_orbit_selection=args.s1_orbit_selection,
         selection_strategy=args.selection_strategy,
         predict_swe=args.predict_swe == "True",
+        max_s1_gap_fraction=args.max_s1_gap_fraction,
+        max_s2_gap_fraction=args.max_s2_gap_fraction,
     )
 
 if __name__ == "__main__":

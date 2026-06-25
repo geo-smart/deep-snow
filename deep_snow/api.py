@@ -276,6 +276,8 @@ def download_data(
     selection_strategy="composite",
     max_buffer_expansions=3,
     buffer_expansion_step_days=2,
+    max_s1_gap_fraction=None,
+    max_s2_gap_fraction=None,
 ):
     from deep_snow.acquisition import acquire_prediction_inputs
     from deep_snow.preprocessing import build_prediction_dataset, write_model_inputs
@@ -295,6 +297,16 @@ def download_data(
         selection_strategy=selection_strategy,
         max_buffer_expansions=max_buffer_expansions,
         buffer_expansion_step_days=buffer_expansion_step_days,
+        **(
+            {}
+            if max_s1_gap_fraction is None
+            else {"max_s1_gap_fraction": max_s1_gap_fraction}
+        ),
+        **(
+            {}
+            if max_s2_gap_fraction is None
+            else {"max_s2_gap_fraction": max_s2_gap_fraction}
+        ),
     )
     ds = build_prediction_dataset(
         raw_inputs,
@@ -397,6 +409,8 @@ def predict_sd(
     sentinel1_orbit_selection="descending",
     selection_strategy="composite",
     predict_swe=False,
+    max_s1_gap_fraction=None,
+    max_s2_gap_fraction=None,
 ):
     """Predict snow depth for one AOI/date.
 
@@ -422,6 +436,8 @@ def predict_sd(
         sentinel1_orbit_selection=sentinel1_orbit_selection,
         selection_strategy=selection_strategy,
         predict_swe=predict_swe,
+        max_s1_gap_fraction=max_s1_gap_fraction,
+        max_s2_gap_fraction=max_s2_gap_fraction,
     )
 
 
@@ -443,6 +459,8 @@ def predict_sd_ts(
     sentinel1_orbit_selection="descending",
     selection_strategy="composite",
     predict_swe=False,
+    max_s1_gap_fraction=None,
+    max_s2_gap_fraction=None,
 ):
     """Legacy time-series alias retained for compatibility.
 
@@ -470,6 +488,8 @@ def predict_sd_ts(
         selection_strategy=selection_strategy,
         tile_large_aoi=True,
         predict_swe=predict_swe,
+        max_s1_gap_fraction=max_s1_gap_fraction,
+        max_s2_gap_fraction=max_s2_gap_fraction,
     )
 
 
@@ -496,6 +516,8 @@ def predict_sd_timeseries(
     tile_large_aoi=True,
     tile_size_degrees=None,
     predict_swe=False,
+    max_s1_gap_fraction=None,
+    max_s2_gap_fraction=None,
 ):
     """Predict a snow-depth time series for one AOI across an explicit date range."""
     return predict_time_series(
@@ -520,6 +542,8 @@ def predict_sd_timeseries(
         tile_large_aoi=tile_large_aoi,
         tile_size_degrees=tile_size_degrees,
         predict_swe=predict_swe,
+        max_s1_gap_fraction=max_s1_gap_fraction,
+        max_s2_gap_fraction=max_s2_gap_fraction,
     )
 
 
@@ -544,6 +568,8 @@ def _predict_time_series_jobs(
     tile_large_aoi=True,
     tile_size_degrees=None,
     predict_swe=False,
+    max_s1_gap_fraction=None,
+    max_s2_gap_fraction=None,
 ):
     """Internal helper that runs a prepared list of time-series jobs."""
     from deep_snow.workflows import predict_batch as workflow_predict_batch
@@ -574,6 +600,8 @@ def _predict_time_series_jobs(
             tile_large_aoi=tile_large_aoi,
             tile_size_degrees=tile_size_degrees,
             predict_swe=predict_swe,
+            max_s1_gap_fraction=max_s1_gap_fraction,
+            max_s2_gap_fraction=max_s2_gap_fraction,
         )
         ds = ds.expand_dims(time=[pd.to_datetime(job["target_date"], format="%Y%m%d")])
         if index > 1:
@@ -602,6 +630,8 @@ def predict_tile(
     sentinel1_orbit_selection="descending",
     selection_strategy="composite",
     predict_swe=False,
+    max_s1_gap_fraction=None,
+    max_s2_gap_fraction=None,
 ):
     """Advanced single-tile helper.
 
@@ -629,6 +659,8 @@ def predict_tile(
         sentinel1_orbit_selection=sentinel1_orbit_selection,
         selection_strategy=selection_strategy,
         predict_swe=predict_swe,
+        max_s1_gap_fraction=max_s1_gap_fraction,
+        max_s2_gap_fraction=max_s2_gap_fraction,
     )
 
 
@@ -654,6 +686,8 @@ def predict_batch(
     tile_large_aoi=True,
     tile_size_degrees=None,
     predict_swe=False,
+    max_s1_gap_fraction=None,
+    max_s2_gap_fraction=None,
 ):
     """Lower-level batch helper used by ``predict_sd``.
 
@@ -683,6 +717,8 @@ def predict_batch(
         tile_large_aoi=tile_large_aoi,
         tile_size_degrees=tile_size_degrees,
         predict_swe=predict_swe,
+        max_s1_gap_fraction=max_s1_gap_fraction,
+        max_s2_gap_fraction=max_s2_gap_fraction,
     )
 
 
@@ -709,6 +745,8 @@ def predict_time_series(
     tile_large_aoi=True,
     tile_size_degrees=None,
     predict_swe=False,
+    max_s1_gap_fraction=None,
+    max_s2_gap_fraction=None,
 ):
     """Lower-level time-series helper used by ``predict_sd_timeseries``."""
     from deep_snow.workflows import build_time_series_jobs
@@ -733,6 +771,8 @@ def predict_time_series(
         tile_large_aoi=tile_large_aoi,
         tile_size_degrees=tile_size_degrees,
         predict_swe=predict_swe,
+        max_s1_gap_fraction=max_s1_gap_fraction,
+        max_s2_gap_fraction=max_s2_gap_fraction,
     )
 
 

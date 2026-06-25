@@ -66,6 +66,8 @@ class ActionScriptTests(unittest.TestCase):
             sentinel1_orbit_selection="descending",
             selection_strategy="composite",
             predict_swe=False,
+            max_s1_gap_fraction=None,
+            max_s2_gap_fraction=None,
         )
 
     def test_predict_tile_wrapper_passes_clip_aoi_when_provided(self):
@@ -104,6 +106,8 @@ class ActionScriptTests(unittest.TestCase):
             sentinel1_orbit_selection="descending",
             selection_strategy="composite",
             predict_swe=False,
+            max_s1_gap_fraction=None,
+            max_s2_gap_fraction=None,
         )
 
     def test_predict_tile_wrapper_passes_sentinel_selection_options(self):
@@ -139,6 +143,8 @@ class ActionScriptTests(unittest.TestCase):
             sentinel1_orbit_selection="all",
             selection_strategy="nearest_usable",
             predict_swe=False,
+            max_s1_gap_fraction=None,
+            max_s2_gap_fraction=None,
         )
 
     def test_predict_tile_wrapper_passes_predict_swe_option(self):
@@ -158,6 +164,27 @@ class ActionScriptTests(unittest.TestCase):
                 self.predict_tile_script.main()
 
         self.assertTrue(mock_predict.call_args.kwargs["predict_swe"])
+
+    def test_predict_tile_wrapper_passes_gap_threshold_options(self):
+        argv = [
+            "predict_tile_sd.py",
+            "20240320",
+            "20230910",
+            "-108.2 37.55 -107.61 38.09",
+            "25",
+            "False",
+            "--max-s1-gap-fraction",
+            "0.1",
+            "--max-s2-gap-fraction",
+            "0.2",
+        ]
+
+        with patch.object(self.predict_tile_script, "predict_tile") as mock_predict:
+            with patch("sys.argv", argv):
+                self.predict_tile_script.main()
+
+        self.assertEqual(mock_predict.call_args.kwargs["max_s1_gap_fraction"], 0.1)
+        self.assertEqual(mock_predict.call_args.kwargs["max_s2_gap_fraction"], 0.2)
 
     def test_prep_tiles_wrapper_writes_matrix_output(self):
         with tempfile.TemporaryDirectory() as tmpdir:

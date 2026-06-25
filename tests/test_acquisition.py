@@ -212,3 +212,52 @@ class AcquisitionHelpersTests(unittest.TestCase):
             input_provenance["sentinel2_snowon"]["attempted_buffer_period_days"],
             [6, 8],
         )
+
+    def test_load_with_buffer_expansion_retries_insufficient_coverage(self):
+        load_calls = []
+
+        def load_fn(buffer_period):
+            load_calls.append(buffer_period)
+            if buffer_period == 6:
+                return "low-coverage", {"valid_pixel_fraction": 0.7}
+            return "good-coverage", {"valid_pixel_fraction": 0.98}
+
+        ds, metadata = acquisition._load_with_buffer_expansion(
+            stage_title="Sentinel-2 snow-on",
+            load_fn=load_fn,
+            initial_buffer_period=6,
+            max_buffer_expansions=2,
+            buffer_expansion_step_days=2,
+            max_gap_fraction=0.1,
+        )
+
+        self.assertEqual(ds, "good-coverage")
+        self.assertEqual(load_calls, [6, 8])
+        self.assertEqual(metadata["attempted_buffer_period_days"], [6, 8])
+        self.assertTrue(metadata["coverage_requirement_satisfied"])
+        self.assertAlmostEqual(metadata["gap_fraction"], 0.02)
+
+    def test_load_with_buffer_expansion_warns_and_proceeds_after_coverage_cap(self):
+        load_calls = []
+
+        def load_fn(buffer_period):
+            load_calls.append(buffer_period)
+            return f"coverage-{buffer_period}", {"valid_pixel_fraction": 0.5}
+
+        with patch("builtins.print") as mock_print:
+            ds, metadata = acquisition._load_with_buffer_expansion(
+                stage_title="Sentinel-1 snow-on",
+                load_fn=load_fn,
+                initial_buffer_period=6,
+                max_buffer_expansions=1,
+                buffer_expansion_step_days=2,
+                max_gap_fraction=0.1,
+            )
+
+        self.assertEqual(ds, "coverage-8")
+        self.assertEqual(load_calls, [6, 8])
+        self.assertEqual(metadata["attempted_buffer_period_days"], [6, 8])
+        self.assertFalse(metadata["coverage_requirement_satisfied"])
+        self.assertAlmostEqual(metadata["gap_fraction"], 0.5)
+        printed = "\n".join(str(call.args[0]) for call in mock_print.call_args_list if call.args)
+        self.assertIn("proceeding with available data", printed)

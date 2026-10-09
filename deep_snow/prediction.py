@@ -53,7 +53,7 @@ FEATURE_SPECS = {
     "snodas_sd": ("snodas_sd", norm_dict["aso_sd"]),
     "elevation": ("elevation", norm_dict["elevation"]),
     "aspect": ("aspect", norm_dict["aspect"]),
-    "northness": ("northness", [0, 1]),
+    "northness": ("northness", [-1, 1]),
     "slope": ("slope", norm_dict["slope"]),
     "curvature": ("curvature", norm_dict["curvature"]),
     "tpi": ("tpi", norm_dict["tpi"]),

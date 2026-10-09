@@ -1,0 +1,66 @@
+{
+  "purpose": "Pins 5-member production-ensemble predictions; see tests/test_numerical_regression.py",
+  "generator": "experiments/04_regression_fixture/make_fixture.py",
+  "git_sha": "e9ee2c5301fee773122cb5d341abab2f0ea01631",
+  "source_data": "experiments/data/subsets_v4/test (delivery verified in experiments/03_data_integrity)",
+  "device": "cpu",
+  "torch_threads": 1,
+  "versions": {
+    "python": "3.13.12",
+    "torch": "2.12.1",
+    "numpy": "2.5.0",
+    "xarray": "2026.4.0"
+  },
+  "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+  "channels": [
+    "snodas_sd",
+    "blue",
+    "swir1",
+    "ndsi",
+    "elevation",
+    "northness",
+    "slope",
+    "curvature",
+    "dowy",
+    "delta_cr",
+    "fcf"
+  ],
+  "weights": {
+    "ResDepth_lr0.000457131171011064_weightdecay0.00010523970398286011_epochs62_mintestloss0.00091": "db346dce0073bbe8",
+    "ResDepth_lr0.00025036613931876504_weightdecay0.00020109428801183744_epochs63_mintestloss0.00091": "5b2d2853e7d2f77b",
+    "ResDepth_lr0.0001572907262097884_weightdecay0.00013101368652881237_epochs98_mintestloss0.00090": "1a8afb79d251f15e",
+    "ResDepth_lr0.00011563677025564128_weightdecay0.0003567649258551211_epochs63_mintestloss0.00092": "42f11963b9497423",
+    "ResDepth_lr0.00026633575524604445_weightdecay8.770493085204089e-05_epochs85_mintestloss0.00090": "be6fe784008064ed"
+  },
+  "tile_stats": {
+    "ASO_50M_SD_Feather_20220310_clean_tile266_s17.nc": {
+      "n_valid_snow_px": 1313,
+      "median_true_m": 0.0166,
+      "bias_m": 0.016,
+      "rmse_m": 0.046
+    },
+    "ASO_50M_SD_LowerPit_20230212_clean_tile229_s1.nc": {
+      "n_valid_snow_px": 8954,
+      "median_true_m": 1.1122,
+      "bias_m": -0.1594,
+      "rmse_m": 0.2429
+    },
+    "ASO_50M_SD_USCATE_20190417_clean_tile53_s9.nc": {
+      "n_valid_snow_px": 13173,
+      "median_true_m": 3.8107,
+      "bias_m": -0.008,
+      "rmse_m": 1.7555
+    },
+    "ASO_50M_SD_Feather_20230428_clean_tile231_s1.nc": {
+      "n_valid_snow_px": 2017,
+      "median_true_m": 4.4098,
+      "bias_m": -0.7041,
+      "rmse_m": 0.9372
+    }
+  },
+  "tolerance": {
+    "max_abs_m": 0.001,
+    "mean_abs_m": 0.0001,
+    "rationale": "1 mm; orders of magnitude below NMAD 0.31 m, far above cross-platform float32 conv variance (~1e-5 m)"
+  }
+}

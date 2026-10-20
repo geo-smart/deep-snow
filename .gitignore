@@ -118,6 +118,9 @@ venv.bak/
 *.nc
 *.tif
 
+# Committed numerical-regression fixture (small, deliberate exception to *.nc)
+!tests/fixtures/regression/*.nc
+
 # Local project outputs and large data products
 CO_application_v0.ai
 data/ASO/

@@ -126,9 +126,10 @@ def build_normalized_feature_dict(ds, input_channels=None):
     feature_dict = {}
     for feature_name in channels:
         source_name, norm = FEATURE_SPECS[feature_name]
-        tensor = torch.as_tensor(np.nan_to_num(ds[source_name].values, nan=0.0), dtype=torch.float32)
+        tensor = torch.as_tensor(ds[source_name].values, dtype=torch.float32)
         if norm is not None:
             tensor = calc_norm(tensor, norm)
+        tensor = torch.nan_to_num(tensor, nan=0.0)
         feature_dict[feature_name] = torch.clamp(tensor, 0, 1)[None, None, :, :]
     return feature_dict
 

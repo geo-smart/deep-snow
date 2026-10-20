@@ -55,6 +55,25 @@ class PredictionHelpersTests(unittest.TestCase):
         self.assertIn("fcf", feature_dict)
         self.assertNotIn("B02", feature_dict)
 
+    def test_build_normalized_feature_dict_zero_fills_nans_after_normalization(self):
+        ds = {
+            name: type("FakeVar", (), {"values": [[float("nan"), 0.0]]})()
+            for name in ("elevation", "curvature", "delta_cr", "ndsi", "fcf")
+        }
+
+        features = prediction.build_normalized_feature_dict(ds, input_channels=list(ds))
+
+        for name, zero_value in {
+            "elevation": 87 / 4509,
+            "curvature": 0.5,
+            "delta_cr": 0.55,
+            "ndsi": 0.5,
+            "fcf": 0.0,
+        }.items():
+            with self.subTest(channel=name):
+                self.assertEqual(features[name][0, 0, 0, 0].item(), 0.0)
+                self.assertAlmostEqual(features[name][0, 0, 0, 1].item(), zero_value)
+
     def test_attach_prediction_metadata_records_output_paths(self):
         ds = type("FakeDataset", (), {"attrs": {}})()
         summary = {

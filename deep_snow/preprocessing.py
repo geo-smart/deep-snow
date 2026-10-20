@@ -38,9 +38,10 @@ def add_radar_features(ds):
 
 
 def add_optical_features(ds):
-    ds["ndvi"] = (ds["B08"] - ds["B04"]) / (ds["B08"] + ds["B04"])
-    ds["ndsi"] = (ds["B03"] - ds["B11"]) / (ds["B03"] + ds["B11"])
-    ds["ndwi"] = (ds["B03"] - ds["B08"]) / (ds["B03"] + ds["B08"])
+    # Training zero-fills undefined optical indices before normalizing [-1, 1].
+    ds["ndvi"] = ((ds["B08"] - ds["B04"]) / (ds["B08"] + ds["B04"])).fillna(0)
+    ds["ndsi"] = ((ds["B03"] - ds["B11"]) / (ds["B03"] + ds["B11"])).fillna(0)
+    ds["ndwi"] = ((ds["B03"] - ds["B08"]) / (ds["B03"] + ds["B08"])).fillna(0)
     return ds
 
 

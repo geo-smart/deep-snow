@@ -46,6 +46,19 @@ def serve_features(path):
 
 @unittest.skipIf(torch is None, "torch-backed prediction runtime not available")
 class FeatureParityTests(unittest.TestCase):
+    def test_undefined_optical_indices_match_training(self):
+        ds = xr.Dataset({
+            band: (("y", "x"), np.array([[0.0, np.nan, 2.0]], dtype=np.float32))
+            for band in ("B03", "B04", "B08", "B11")
+        })
+        channels = ["ndvi", "ndsi", "ndwi"]
+        train_ds = Datasetv2([], channels, norm=True, augment=False)
+        train_x = torch.cat([train_ds.get_band_index(ds, name) for name in channels], 0)
+        serve_x = build_model_inputs(add_optical_features(ds), input_channels=channels)[0]
+
+        torch.testing.assert_close(serve_x, train_x)
+        torch.testing.assert_close(serve_x, torch.full_like(serve_x, 0.5))
+
     def test_train_and_serve_features_identical(self):
         tile_paths = sorted(FIXTURE_DIR.glob("*.nc"))
         if not tile_paths:
